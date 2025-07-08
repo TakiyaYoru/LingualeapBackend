@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename);
 import { connectDB, db } from './config.js';
 import { authTypeDefs, authResolvers } from './graphql/authentication.js';
 import { courseTypeDefs, courseResolvers } from './graphql/courses.js';
+import { contentMutationTypeDefs, contentMutationResolvers } from './graphql/contentManagement.js';
 import { authUtils } from './utils/auth.js';
 
 // Create GraphQL schema
@@ -36,6 +37,7 @@ const schema = createSchema({
     
     ${authTypeDefs}
     ${courseTypeDefs}
+    ${contentMutationTypeDefs}
   `,
   resolvers: {
     Query: {
@@ -46,7 +48,8 @@ const schema = createSchema({
     },
     Mutation: {
       _empty: () => 'This field is not used',
-      ...authResolvers.Mutation
+      ...authResolvers.Mutation,
+      ...contentMutationResolvers.Mutation
     }
   }
 });

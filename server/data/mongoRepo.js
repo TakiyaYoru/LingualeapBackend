@@ -251,9 +251,50 @@ const courseRepository = {
       const savedCourse = await course.save();
       console.log('✅ Course created successfully:', savedCourse._id);
       
-      return savedCourse;
+      return await Course.findById(savedCourse._id).populate('createdBy', 'displayName');
     } catch (error) {
       console.error('❌ Error creating course:', error.message);
+      throw error;
+    }
+  },
+
+  // Update course
+  async update(id, updateData) {
+    try {
+      console.log('📝 Updating course:', id);
+      
+      const course = await Course.findByIdAndUpdate(
+        id, 
+        updateData, 
+        { new: true, runValidators: true }
+      ).populate('createdBy', 'displayName');
+      
+      if (course) {
+        console.log('✅ Course updated successfully:', course._id);
+      }
+      return course;
+    } catch (error) {
+      console.error('❌ Error updating course:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete course
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting course:', id);
+      
+      // Delete related content first
+      await Unit.deleteMany({ courseId: id });
+      await Lesson.deleteMany({ courseId: id });
+      await Exercise.deleteMany({ courseId: id });
+      
+      const result = await Course.findByIdAndDelete(id);
+      console.log('✅ Course deleted successfully:', id);
+      
+      return !!result;
+    } catch (error) {
+      console.error('❌ Error deleting course:', error.message);
       throw error;
     }
   }
@@ -315,9 +356,58 @@ const unitRepository = {
       );
       
       console.log('✅ Unit created successfully:', savedUnit._id);
-      return savedUnit;
+      return await Unit.findById(savedUnit._id).populate('courseId', 'title level');
     } catch (error) {
       console.error('❌ Error creating unit:', error.message);
+      throw error;
+    }
+  },
+
+  // Update unit
+  async update(id, updateData) {
+    try {
+      console.log('📝 Updating unit:', id);
+      
+      const unit = await Unit.findByIdAndUpdate(
+        id, 
+        updateData, 
+        { new: true, runValidators: true }
+      ).populate('courseId', 'title level');
+      
+      if (unit) {
+        console.log('✅ Unit updated successfully:', unit._id);
+      }
+      return unit;
+    } catch (error) {
+      console.error('❌ Error updating unit:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete unit
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting unit:', id);
+      
+      const unit = await Unit.findById(id);
+      if (!unit) return false;
+      
+      // Delete related content
+      await Lesson.deleteMany({ unitId: id });
+      await Exercise.deleteMany({ unitId: id });
+      
+      // Update course counter
+      await Course.findByIdAndUpdate(
+        unit.courseId,
+        { $inc: { totalUnits: -1 } }
+      );
+      
+      const result = await Unit.findByIdAndDelete(id);
+      console.log('✅ Unit deleted successfully:', id);
+      
+      return !!result;
+    } catch (error) {
+      console.error('❌ Error deleting unit:', error.message);
       throw error;
     }
   }
@@ -387,9 +477,65 @@ const lessonRepository = {
       );
       
       console.log('✅ Lesson created successfully:', savedLesson._id);
-      return savedLesson;
+      return await Lesson.findById(savedLesson._id)
+        .populate('unitId', 'title theme')
+        .populate('courseId', 'title level');
     } catch (error) {
       console.error('❌ Error creating lesson:', error.message);
+      throw error;
+    }
+  },
+
+  // Update lesson
+  async update(id, updateData) {
+    try {
+      console.log('📝 Updating lesson:', id);
+      
+      const lesson = await Lesson.findByIdAndUpdate(
+        id, 
+        updateData, 
+        { new: true, runValidators: true }
+      ).populate('unitId', 'title theme')
+       .populate('courseId', 'title level');
+      
+      if (lesson) {
+        console.log('✅ Lesson updated successfully:', lesson._id);
+      }
+      return lesson;
+    } catch (error) {
+      console.error('❌ Error updating lesson:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete lesson
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting lesson:', id);
+      
+      const lesson = await Lesson.findById(id);
+      if (!lesson) return false;
+      
+      // Delete related exercises
+      await Exercise.deleteMany({ lessonId: id });
+      
+      // Update counters
+      await Unit.findByIdAndUpdate(
+        lesson.unitId,
+        { $inc: { totalLessons: -1 } }
+      );
+      
+      await Course.findByIdAndUpdate(
+        lesson.courseId,
+        { $inc: { totalLessons: -1 } }
+      );
+      
+      const result = await Lesson.findByIdAndDelete(id);
+      console.log('✅ Lesson deleted successfully:', id);
+      
+      return !!result;
+    } catch (error) {
+      console.error('❌ Error deleting lesson:', error.message);
       throw error;
     }
   }
@@ -463,9 +609,69 @@ const exerciseRepository = {
       );
       
       console.log('✅ Exercise created successfully:', savedExercise._id);
-      return savedExercise;
+      return await Exercise.findById(savedExercise._id)
+        .populate('lessonId', 'title type')
+        .populate('unitId', 'title theme')
+        .populate('courseId', 'title level');
     } catch (error) {
       console.error('❌ Error creating exercise:', error.message);
+      throw error;
+    }
+  },
+
+  // Update exercise
+  async update(id, updateData) {
+    try {
+      console.log('📝 Updating exercise:', id);
+      
+      const exercise = await Exercise.findByIdAndUpdate(
+        id, 
+        updateData, 
+        { new: true, runValidators: true }
+      ).populate('lessonId', 'title type')
+       .populate('unitId', 'title theme')
+       .populate('courseId', 'title level');
+      
+      if (exercise) {
+        console.log('✅ Exercise updated successfully:', exercise._id);
+      }
+      return exercise;
+    } catch (error) {
+      console.error('❌ Error updating exercise:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete exercise
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting exercise:', id);
+      
+      const exercise = await Exercise.findById(id);
+      if (!exercise) return false;
+      
+      // Update counters
+      await Lesson.findByIdAndUpdate(
+        exercise.lessonId,
+        { $inc: { totalExercises: -1 } }
+      );
+      
+      await Unit.findByIdAndUpdate(
+        exercise.unitId,
+        { $inc: { totalExercises: -1 } }
+      );
+      
+      await Course.findByIdAndUpdate(
+        exercise.courseId,
+        { $inc: { totalExercises: -1 } }
+      );
+      
+      const result = await Exercise.findByIdAndDelete(id);
+      console.log('✅ Exercise deleted successfully:', id);
+      
+      return !!result;
+    } catch (error) {
+      console.error('❌ Error deleting exercise:', error.message);
       throw error;
     }
   }
