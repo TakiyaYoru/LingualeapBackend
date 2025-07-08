@@ -56,20 +56,19 @@ const yoga = createYoga({
   schema,
   context: async ({ request }) => {
     console.log('📝 Request to:', request.url);
-    
+
     // Get user from JWT token
     const user = await authUtils.getUserFromRequest(request, db);
-    
+
     return {
-      db: db, // Database repository
-      user: user, // Authenticated user (null if not logged in)
+      db: db,
+      user: user,
       secret: request.headers.get("secret"),
     };
   },
   formatError: (error) => {
     console.error('❌ GraphQL Error:', error.message);
-    
-    // Return detailed error in development
+
     if (process.env.NODE_ENV !== 'production') {
       return {
         message: error.message,
@@ -83,7 +82,7 @@ const yoga = createYoga({
         }
       };
     }
-    
+
     return {
       message: error.message,
       locations: error.locations,
@@ -100,7 +99,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -123,23 +122,19 @@ app.get('/health', (req, res) => {
 app.get("/files/:filename", (req, res) => {
   const filename = req.params.filename;
   const pathDir = path.join(__dirname, "/uploads/" + filename);
-  
-  // Check if file exists
+
   if (!fs.existsSync(pathDir)) {
     return res.status(404).json({
       error: 'File not found',
       filename: filename
     });
   }
-  
+
   res.sendFile(pathDir);
 });
 
 // GraphQL endpoint
 app.use(yoga.graphqlEndpoint, yoga);
-
-// Port configuration
-const PORT = process.env.PORT || 4000;
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, "uploads");
@@ -148,32 +143,11 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Start server
-const startServer = async () => {
-  try {
-    // Connect to database
-    await connectDB();
-    
-    // Start Express server
-    app.listen(PORT, () => {
-      console.log('\n🎉 =====================================');
-      console.log('   LINGUALEAP BACKEND SERVER STARTED');
-      console.log('🎉 =====================================');
-      console.log(`🚀 Server ready at: http://localhost:${PORT}/`);
-      console.log(`🩺 Health check: http://localhost:${PORT}/health`);
-      console.log(`📊 GraphQL Playground: http://localhost:${PORT}/graphql`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log('=====================================\n');
-      
-      console.log('📝 Next steps:');
-      console.log('   1. Test GraphQL queries in playground');
-      console.log('   2. Create more sample content if needed');
-      console.log('   3. Build Flutter frontend integration');
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
-  }
-};
+// Connect to database
+connectDB().catch((error) => {
+  console.error('❌ Failed to connect to database:', error.message);
+  process.exit(1);
+});
 
-startServer();
+// Export the Express app as a handler
+export default app;
