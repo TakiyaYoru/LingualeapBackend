@@ -8,7 +8,7 @@ import { CourseSchema } from "./course.js";
 import { UnitSchema } from "./unit.js";
 import { LessonSchema } from "./lesson.js";
 import { ExerciseSchema } from "./exercise.js";
-
+export { Vocabulary } from './vocabulary.js'; 
 // Export models
 export const User = mongoose.model("User", UserSchema);
 export const Course = mongoose.model("Course", CourseSchema);

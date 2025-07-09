@@ -4,7 +4,7 @@
 
 import { User, Course, Unit, Lesson, Exercise } from "./models/index.js";
 import bcrypt from "bcrypt";
-
+import mongoose from 'mongoose'; // ← ADD THIS LINE
 // ===============================================
 // USER REPOSITORY
 // ===============================================
@@ -677,6 +677,259 @@ const exerciseRepository = {
   }
 };
 
+
+import { Vocabulary } from './models/index.js';
+
+// ADD this repository BEFORE the final export
+const vocabularyRepository = {
+  // Find vocabulary by user with filters
+  async findByUser(userId, filters = {}) {
+    try {
+      const query = { 
+        //userId: new mongoose.Types.ObjectId(userId), 
+        userId: userId, 
+        isActive: true 
+      };
+      
+      // Apply filters
+      if (filters.isLearned !== undefined) {
+        query.isLearned = filters.isLearned;
+      }
+      
+      if (filters.category) {
+        query.category = filters.category;
+      }
+      
+      if (filters.search) {
+        query.$or = [
+          { word: { $regex: filters.search, $options: 'i' } },
+          { meaning: { $regex: filters.search, $options: 'i' } },
+          { example: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+      
+      // Build sort
+      let sort = { createdAt: -1 }; // Default: newest first
+      if (filters.sortBy) {
+        switch (filters.sortBy) {
+          case 'alphabetical':
+            sort = { word: 1 };
+            break;
+          case 'learned_first':
+            sort = { isLearned: -1, createdAt: -1 };
+            break;
+          case 'difficulty':
+            sort = { difficulty: -1, createdAt: -1 };
+            break;
+        }
+      }
+      
+      return await Vocabulary.find(query)
+        .sort(sort)
+        .limit(filters.limit || 100)
+        .lean();
+    } catch (error) {
+      console.error('❌ Error finding vocabulary by user:', error.message);
+      throw error;
+    }
+  },
+
+  // Find by ID
+  async findById(vocabularyId, userId = null) {
+    try {
+      const query = { _id: vocabularyId, isActive: true };
+      if (userId) {
+        query.userId = new mongoose.Types.ObjectId(userId);
+      }
+      
+      return await Vocabulary.findOne(query).lean();
+    } catch (error) {
+      console.error('❌ Error finding vocabulary by ID:', error.message);
+      throw error;
+    }
+  },
+
+  // Create vocabulary word
+  async create(vocabularyData) {
+    try {
+      console.log('📚 Creating vocabulary word:', vocabularyData.word);
+      
+      const vocabulary = new Vocabulary(vocabularyData);
+      const savedVocabulary = await vocabulary.save();
+      
+      console.log('✅ Vocabulary word created:', savedVocabulary._id);
+      return savedVocabulary;
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new Error('This word already exists in your vocabulary');
+      }
+      console.error('❌ Error creating vocabulary:', error.message);
+      throw error;
+    }
+  },
+
+  // Update vocabulary word
+  async update(vocabularyId, userId, updateData) {
+    try {
+      const vocabulary = await Vocabulary.findOneAndUpdate(
+        { 
+          _id: vocabularyId, 
+          userId: new mongoose.Types.ObjectId(userId),
+          isActive: true
+        },
+        updateData,
+        { 
+          new: true, 
+          runValidators: true 
+        }
+      );
+      
+      if (!vocabulary) {
+        throw new Error('Vocabulary word not found');
+      }
+      
+      console.log('✅ Vocabulary word updated:', vocabulary.word);
+      return vocabulary;
+    } catch (error) {
+      console.error('❌ Error updating vocabulary:', error.message);
+      throw error;
+    }
+  },
+
+  // Toggle learned status
+  async toggleLearned(vocabularyId, userId) {
+    try {
+      const vocabulary = await Vocabulary.findOne({
+        _id: vocabularyId,
+        userId: new mongoose.Types.ObjectId(userId),
+        isActive: true
+      });
+      
+      if (!vocabulary) {
+        throw new Error('Vocabulary word not found');
+      }
+      
+      vocabulary.isLearned = !vocabulary.isLearned;
+      if (vocabulary.isLearned) {
+        vocabulary.learnedAt = new Date();
+        vocabulary.reviewCount += 1;
+      } else {
+        vocabulary.learnedAt = null;
+      }
+      
+      await vocabulary.save();
+      
+      console.log('✅ Vocabulary learned status toggled:', vocabulary.word, '→', vocabulary.isLearned);
+      return vocabulary;
+    } catch (error) {
+      console.error('❌ Error toggling vocabulary learned status:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete vocabulary word (soft delete)
+  async delete(vocabularyId, userId) {
+    try {
+      const vocabulary = await Vocabulary.findOneAndUpdate(
+        {
+          _id: vocabularyId,
+          userId: new mongoose.Types.ObjectId(userId),
+          isActive: true
+        },
+        { isActive: false },
+        { new: true }
+      );
+      
+      if (!vocabulary) {
+        throw new Error('Vocabulary word not found');
+      }
+      
+      console.log('✅ Vocabulary word deleted:', vocabulary.word);
+      return vocabulary;
+    } catch (error) {
+      console.error('❌ Error deleting vocabulary:', error.message);
+      throw error;
+    }
+  },
+
+  // Get user statistics
+  async getUserStats(userId) {
+    try {
+      const stats = await Vocabulary.getUserStats(userId);
+      return stats[0] || {
+        totalWords: 0,
+        learnedWords: 0,
+        unlearnedWords: 0,
+        progressPercentage: 0,
+        averageDifficulty: 0,
+        totalReviews: 0,
+        totalAttempts: 0,
+        totalCorrect: 0,
+        overallSuccessRate: 0
+      };
+    } catch (error) {
+      console.error('❌ Error getting user vocabulary stats:', error.message);
+      throw error;
+    }
+  },
+
+  // Get user categories
+  async getUserCategories(userId) {
+    try {
+      return await Vocabulary.distinct('category', {
+        userId: new mongoose.Types.ObjectId(userId),
+        isActive: true
+      });
+    } catch (error) {
+      console.error('❌ Error getting user categories:', error.message);
+      throw error;
+    }
+  },
+
+  // Get words for review
+  async getWordsForReview(userId, limit = 10) {
+    try {
+      const today = new Date();
+      
+      return await Vocabulary.find({
+        userId: new mongoose.Types.ObjectId(userId),
+        isLearned: true,
+        isActive: true,
+        $or: [
+          { nextReviewDate: { $lte: today } },
+          { nextReviewDate: null }
+        ]
+      })
+      .sort({ nextReviewDate: 1, learnedAt: 1 })
+      .limit(limit)
+      .lean();
+    } catch (error) {
+      console.error('❌ Error getting words for review:', error.message);
+      throw error;
+    }
+  },
+
+  // Clear all vocabulary
+  async clearAll(userId) {
+    try {
+      const result = await Vocabulary.updateMany(
+        { 
+          userId: new mongoose.Types.ObjectId(userId),
+          isActive: true 
+        },
+        { isActive: false }
+      );
+      
+      console.log('✅ All vocabulary cleared for user:', userId);
+      return {
+        deletedCount: result.modifiedCount
+      };
+    } catch (error) {
+      console.error('❌ Error clearing vocabulary:', error.message);
+      throw error;
+    }
+  }
+};
 // ===============================================
 // EXPORT REPOSITORY
 // ===============================================
@@ -686,5 +939,6 @@ export const db = {
   courses: courseRepository,
   units: unitRepository,
   lessons: lessonRepository,
-  exercises: exerciseRepository
+  exercises: exerciseRepository,
+  vocabulary: vocabularyRepository
 };

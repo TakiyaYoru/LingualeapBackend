@@ -1,5 +1,6 @@
 // ===============================================
 // LINGUALEAP BACKEND - MAIN SERVER ENTRY POINT
+// Updated to include Vocabulary System
 // ===============================================
 
 import express from 'express';
@@ -20,7 +21,7 @@ const __dirname = path.dirname(__filename);
 import { connectDB, db } from './config.js';
 import { authTypeDefs, authResolvers } from './graphql/authentication.js';
 import { courseTypeDefs, courseResolvers } from './graphql/courses.js';
-import { contentMutationTypeDefs, contentMutationResolvers } from './graphql/contentManagement.js';
+import { vocabularyTypeDefs, vocabularyResolvers } from './graphql/vocabulary.js'; // ← NEW
 import { authUtils } from './utils/auth.js';
 
 // Create GraphQL schema
@@ -37,88 +38,65 @@ const schema = createSchema({
     
     ${authTypeDefs}
     ${courseTypeDefs}
-    ${contentMutationTypeDefs}
+    ${vocabularyTypeDefs}
   `,
   resolvers: {
     Query: {
       hello: () => '🚀 LinguaLeap Backend is running!',
       health: () => '✅ Server is healthy and ready to learn English!',
       ...authResolvers.Query,
-      ...courseResolvers.Query
+      ...courseResolvers.Query,
+      ...vocabularyResolvers.Query, // ← NEW
     },
     Mutation: {
-      _empty: () => 'This field is not used',
       ...authResolvers.Mutation,
-      ...contentMutationResolvers.Mutation
-    }
-  }
+      ...courseResolvers.Mutation,
+      ...vocabularyResolvers.Mutation, // ← NEW
+    },
+  },
 });
 
-// Create GraphQL Yoga instance
+// Create Yoga GraphQL server
 const yoga = createYoga({
   schema,
   context: async ({ request }) => {
-    console.log('📝 Request to:', request.url);
-    
-    // Get user from JWT token
-    const user = await authUtils.getUserFromRequest(request, db);
-    
-    return {
-      db: db, // Database repository
-      user: user, // Authenticated user (null if not logged in)
-      secret: request.headers.get("secret"),
-    };
-  },
-  formatError: (error) => {
-    console.error('❌ GraphQL Error:', error.message);
-    
-    // Return detailed error in development
-    if (process.env.NODE_ENV !== 'production') {
+    try {
+      // Extract user from JWT token - FIXED with db parameter
+      const user = await authUtils.getUserFromRequest(request, db); // ← FIXED
+      
       return {
-        message: error.message,
-        locations: error.locations,
-        path: error.path,
-        extensions: {
-          code: error.extensions?.code,
-          exception: {
-            stacktrace: error.stack?.split('\n') || []
-          }
-        }
+        db,
+        user,
+        request,
+      };
+    } catch (error) {
+      console.error('❌ Context creation error:', error.message);
+      return {
+        db,
+        user: null,
+        request,
       };
     }
-    
-    return {
-      message: error.message,
-      locations: error.locations,
-      path: error.path
-    };
-  }
+  },
 });
 
 // Create Express app
 const app = express();
 
-// CORS middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
-
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'success',
-    message: '✅ LinguaLeap Backend is healthy!',
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    message: '✅ LinguaLeap Backend is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
+    version: '1.0.0',
+    features: [
+      'Authentication System',
+      'Course Management', 
+      'Vocabulary System', // ← NEW
+      'GraphQL API'
+    ]
   });
 });
 
@@ -168,10 +146,18 @@ const startServer = async () => {
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('=====================================\n');
       
-      console.log('📝 Next steps:');
-      console.log('   1. Test GraphQL queries in playground');
-      console.log('   2. Create more sample content if needed');
-      console.log('   3. Build Flutter frontend integration');
+      console.log('📝 Available Features:');
+      console.log('   ✅ Authentication (login, register, me)');
+      console.log('   ✅ Course Management (courses, units, lessons)');
+      console.log('   ✅ Vocabulary System (CRUD, filters, stats)'); // ← NEW
+      console.log('   ✅ GraphQL API with JWT authentication');
+      console.log('=====================================\n');
+      
+      console.log('🔗 GraphQL Endpoints:');
+      console.log('   📚 Vocabulary: myVocabulary, addVocabularyWord, toggleVocabularyLearned');
+      console.log('   📊 Stats: myVocabularyStats, myVocabularyCategories');
+      console.log('   🔄 Review: wordsForReview, recordVocabularyReview');
+      console.log('=====================================\n');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
@@ -179,4 +165,16 @@ const startServer = async () => {
   }
 };
 
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Start the server
 startServer();
