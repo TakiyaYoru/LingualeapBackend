@@ -1,5 +1,5 @@
 // ===============================================
-// UNIT MODEL - LINGUALEAP
+// UNIT MODEL - THEME-BASED ARCHITECTURE
 // ===============================================
 
 import mongoose from "mongoose";
@@ -17,44 +17,43 @@ export const UnitSchema = new Schema(
     },
     description: {
       type: String,
-      required: true,
       trim: true,
       maxlength: 300
     },
     
-    // Course Relationship
-    courseId: {
+    // Relationships
+    course_id: {
       type: Schema.Types.ObjectId,
       ref: 'Course',
       required: true,
       index: true
     },
     
-    // Unit Theme
+    // Theme Classification (NEW)
     theme: {
       type: String,
       required: true,
       enum: [
-        'daily_life',           // Cuộc sống hàng ngày
-        'family_friends',       // Gia đình và bạn bè
-        'food_dining',          // Ăn uống
-        'travel_transport',     // Du lịch và giao thông
-        'work_career',          // Công việc và sự nghiệp
-        'health_fitness',       // Sức khỏe và thể dục
-        'shopping',             // Mua sắm
-        'education',            // Giáo dục
-        'entertainment',        // Giải trí
-        'weather_seasons',      // Thời tiết và mùa
-        'home_living',          // Nhà ở và sinh hoạt
-        'numbers_time',         // Số và thời gian
-        'colors_shapes',        // Màu sắc và hình dạng
-        'greetings_intro',      // Chào hỏi và giới thiệu
-        'hobbies_interests'     // Sở thích và quan tâm
+        'greetings_intro',      // Chào hỏi & Giới thiệu
+        'numbers_time',         // Số đếm & Thời gian
+        'family_relationships', // Gia đình & Các mối quan hệ
+        'food_drinks',          // Thức ăn & Đồ uống
+        'shopping_money',       // Mua sắm & Tiền bạc
+        'transport_directions', // Giao thông & Chỉ đường
+        'weather_seasons',      // Thời tiết & Mùa
+        'hobbies_interests',    // Sở thích & Quan tâm
+        'work_occupations',     // Công việc & Nghề nghiệp
+        'health_body',          // Sức khỏe & Cơ thể
+        'home_furniture',       // Nhà cửa & Nội thất
+        'clothes_fashion',      // Quần áo & Thời trang
+        'technology_media',     // Công nghệ & Truyền thông
+        'education_learning',   // Giáo dục & Học tập
+        'emotions_feelings'     // Cảm xúc & Cảm giác
       ],
       index: true
     },
     
-    // Visual
+    // Visual & Media
     icon: {
       type: String,
       default: null // Icon name or URL
@@ -69,119 +68,65 @@ export const UnitSchema = new Schema(
     },
     
     // Unit Structure
-    totalLessons: {
+    total_lessons: {
       type: Number,
       default: 0
     },
-    totalExercises: {
-      type: Number,
-      default: 0
-    },
-    estimatedDuration: {
+    estimated_duration: {
       type: Number, // Estimated minutes to complete
       required: true,
-      min: 5
+      min: 15
     },
     
-    // Learning Content
-    vocabulary: [{
-      word: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      meaning: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      pronunciation: {
-        type: String,
-        default: null // IPA or phonetic
-      },
-      audioUrl: {
-        type: String,
-        default: null
-      },
-      example: {
-        sentence: String,
-        translation: String
-      }
-    }],
-    
-    grammarPoints: [{
-      title: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      explanation: {
-        type: String,
-        required: true
-      },
-      examples: [{
-        sentence: String,
-        translation: String
-      }]
-    }],
-    
-    // Access Control
-    isPremium: {
-      type: Boolean,
-      default: false
-    },
-    isPublished: {
-      type: Boolean,
-      default: false
-    },
-    
-    // Unlock Requirements
-    requiresUnlock: {
-      type: Boolean,
-      default: true
-    },
-    unlockRequirements: {
-      previousUnitId: {
+    // Prerequisites & Challenge Test (NEW)
+    prerequisites: {
+      previous_unit_id: {
         type: Schema.Types.ObjectId,
         ref: 'Unit',
         default: null
       },
-      minimumXP: {
+      minimum_score: {
         type: Number,
-        default: 0
+        default: 80 // 80% unit trước
       },
-      minimumStreak: {
+      required_hearts: {
         type: Number,
-        default: 0
+        default: 5 // hearts cần để unlock
       }
     },
     
-    // Gamification
-    xpReward: {
-      type: Number,
-      default: 50 // XP for completing entire unit
+    challenge_test: {
+      total_questions: {
+        type: Number,
+        default: 15
+      },
+      pass_percentage: {
+        type: Number,
+        default: 80
+      },
+      must_correct_questions: [{
+        type: Number // câu liệt [2, 7, 12]
+      }],
+      time_limit: {
+        type: Number,
+        default: 20 // minutes
+      }
     },
-    badgeReward: {
-      type: String,
-      default: null // Badge name for unit completion
+    
+    // Access Control
+    is_premium: {
+      type: Boolean,
+      default: false
+    },
+    is_published: {
+      type: Boolean,
+      default: false
     },
     
     // Ordering
-    sortOrder: {
+    sort_order: {
       type: Number,
-      required: true,
-      index: true
-    },
-    
-    // Admin Fields
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    lastUpdatedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User'
+      default: 0
     }
   },
   {
@@ -190,21 +135,19 @@ export const UnitSchema = new Schema(
   }
 );
 
-// Compound indexes
-UnitSchema.index({ courseId: 1, sortOrder: 1 });
-UnitSchema.index({ theme: 1, isPremium: 1 });
-UnitSchema.index({ courseId: 1, isPublished: 1 });
+// Indexes for performance
+UnitSchema.index({ course_id: 1, sort_order: 1 });
+UnitSchema.index({ theme: 1 });
+UnitSchema.index({ is_published: 1 });
 
-// Virtual for unit progress (calculated from user progress)
-UnitSchema.virtual('progressPercentage').get(function() {
-  // This will be populated when querying with user context
-  return this._progressPercentage || 0;
+// Virtual for progress percentage (will be calculated based on user progress)
+UnitSchema.virtual('progress_percentage').get(function() {
+  return this._progress_percentage || 0;
 });
 
 // Virtual for unlock status
-UnitSchema.virtual('isUnlocked').get(function() {
-  // This will be calculated based on user progress
-  return this._isUnlocked !== undefined ? this._isUnlocked : false;
+UnitSchema.virtual('is_unlocked').get(function() {
+  return this._is_unlocked !== undefined ? this._is_unlocked : false;
 });
 
 // Ensure virtual fields are serialized

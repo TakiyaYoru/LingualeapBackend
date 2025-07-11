@@ -1,290 +1,247 @@
 // ===============================================
-// VOCABULARY MODEL - LINGUALEAP
-// Following same pattern as user.js and course.js
+// VOCABULARY MODEL - CENTRALIZED VOCABULARY SYSTEM
 // ===============================================
 
 import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
-const VocabularySchema = new Schema(
+export const VocabularySchema = new Schema(
   {
-    // User relationship
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      index: true
-    },
-    
-    // Basic Word Data
+    // Basic Word Information
     word: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 100
+      lowercase: true,
+      index: true
     },
     
     meaning: {
       type: String,
       required: true,
-      trim: true,
-      maxlength: 500
+      trim: true // "quả táo", "xin chào"
     },
     
+    // Pronunciation & Audio
     pronunciation: {
       type: String,
-      trim: true,
-      maxlength: 200,
-      default: null
+      trim: true // "/həˈloʊ/", "/ˈæpəl/"
     },
     
-    example: {
+    audio_url: {
       type: String,
-      trim: true,
-      maxlength: 1000,
-      default: null
+      default: null // URL to pronunciation audio
     },
     
-    // Learning Progress
-    isLearned: {
-      type: Boolean,
-      default: false,
+    // Visual
+    image_url: {
+      type: String,
+      default: null // URL to word illustration
+    },
+    
+    // Classification
+    difficulty: {
+      type: String,
+      required: true,
+      enum: ['beginner', 'intermediate', 'advanced'],
+      default: 'beginner',
       index: true
     },
     
-    learnedAt: {
-      type: Date,
-      default: null
-    },
-    
-    // Organization
-    category: {
-      type: String,
-      trim: true,
-      maxlength: 50,
-      default: 'general'
+    frequency_score: {
+      type: Number,
+      min: 1,
+      max: 100,
+      default: 50 // How common this word is (1 = rare, 100 = very common)
     },
     
     tags: [{
       type: String,
       trim: true,
-      maxlength: 30
+      lowercase: true // ["greeting", "food", "common", "daily", "polite"]
     }],
     
-    // Difficulty & Learning Data
-    difficulty: {
-      type: Number,
-      default: 1,
-      min: 1,
-      max: 5
-    },
+    // Multiple Definitions & Contexts
+    definitions: [{
+      context: {
+        type: String,
+        required: true // "greeting", "food", "emotion"
+      },
+      meaning: {
+        type: String,
+        required: true // "lời chào hỏi", "quả táo đỏ"
+      },
+      example: {
+        sentence: {
+          type: String // "Hello, how are you?"
+        },
+        translation: {
+          type: String // "Xin chào, bạn khỏe không?"
+        }
+      }
+    }],
     
-    reviewCount: {
-      type: Number,
-      default: 0
-    },
+    // Word Relationships
+    synonyms: [{
+      word: String,
+      meaning: String // "hi" - "chào"
+    }],
     
-    correctAnswers: {
-      type: Number,
-      default: 0
-    },
+    antonyms: [{
+      word: String,
+      meaning: String // "goodbye" - "tạm biệt"
+    }],
     
-    totalAttempts: {
-      type: Number,
-      default: 0
-    },
+    word_family: [{
+      word: String,
+      relation: {
+        type: String,
+        enum: ['noun', 'verb', 'adjective', 'adverb', 'past_tense', 'plural']
+      },
+      meaning: String
+    }],
     
-    lastReviewed: {
-      type: Date,
-      default: null
-    },
-    
-    nextReviewDate: {
-      type: Date,
-      default: null
-    },
-    
-    // Source Information
-    source: {
+    // Learning Metadata
+    part_of_speech: {
       type: String,
-      enum: ['manual', 'lesson', 'import', 'suggestion'],
-      default: 'manual'
+      enum: ['noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'interjection', 'pronoun'],
+      required: true
     },
     
-    sourceReference: {
+    theme_categories: [{
       type: String,
-      trim: true,
-      default: null
+      enum: [
+        'greetings_intro',
+        'numbers_time', 
+        'family_relationships',
+        'food_drinks',
+        'shopping_money',
+        'transport_directions',
+        'weather_seasons',
+        'hobbies_interests',
+        'work_occupations',
+        'health_body',
+        'home_furniture',
+        'clothes_fashion',
+        'technology_media',
+        'education_learning',
+        'emotions_feelings'
+      ]
+    }],
+    
+    // Usage Statistics
+    usage_stats: {
+      total_lessons_appeared: {
+        type: Number,
+        default: 0
+      },
+      total_exercises_used: {
+        type: Number,
+        default: 0
+      },
+      avg_user_success_rate: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 0
+      }
     },
     
-    // Lesson Integration (Optional)
-    lessonId: {
+    // Administrative
+    created_by: {
       type: Schema.Types.ObjectId,
-      ref: 'Lesson',
-      default: null
+      ref: 'User'
     },
     
-    unitId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Unit',
-      default: null
-    },
-    
-    courseId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Course',
-      default: null
-    },
-    
-    // Media URLs (Optional)
-    audioUrl: {
-      type: String,
-      default: null
-    },
-    
-    imageUrl: {
-      type: String,
-      default: null
-    },
-    
-    // Status
-    isActive: {
+    is_active: {
       type: Boolean,
-      default: true,
-      index: true
-    },
-    
-    // Creator tracking
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      default: null
+      default: true
     }
   },
   {
-    collection: "vocabulary",
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    collection: 'vocabulary'
   }
 );
 
-// ===============================================
-// INDEXES FOR PERFORMANCE (like other models)
-// ===============================================
+// Indexes for performance
+VocabularySchema.index({ word: 1, difficulty: 1 });
+VocabularySchema.index({ tags: 1 });
+VocabularySchema.index({ theme_categories: 1 });
+VocabularySchema.index({ frequency_score: -1 });
+VocabularySchema.index({ part_of_speech: 1 });
+VocabularySchema.index({ is_active: 1 });
 
-// Compound indexes
-VocabularySchema.index({ userId: 1, word: 1 }, { unique: true }); // Prevent duplicates
-VocabularySchema.index({ userId: 1, isLearned: 1 });
-VocabularySchema.index({ userId: 1, createdAt: -1 });
-VocabularySchema.index({ userId: 1, category: 1 });
-VocabularySchema.index({ userId: 1, nextReviewDate: 1 });
-
-// Text search
+// Text index for search functionality
 VocabularySchema.index({ 
   word: 'text', 
-  meaning: 'text' 
+  meaning: 'text', 
+  'definitions.meaning': 'text' 
 });
 
-// ===============================================
-// VIRTUAL FIELDS (like user.js pattern)
-// ===============================================
-
-VocabularySchema.virtual('daysSinceCreated').get(function() {
-  const now = new Date();
-  const diffTime = Math.abs(now - this.createdAt);
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+// Virtual for primary definition
+VocabularySchema.virtual('primary_definition').get(function() {
+  return this.definitions.length > 0 ? this.definitions[0] : null;
 });
 
-VocabularySchema.virtual('daysSinceLearned').get(function() {
-  if (!this.learnedAt) return null;
-  const now = new Date();
-  const diffTime = Math.abs(now - this.learnedAt);
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-});
-
-VocabularySchema.virtual('successRate').get(function() {
-  if (this.totalAttempts === 0) return 0;
-  return Math.round((this.correctAnswers / this.totalAttempts) * 100);
-});
-
-VocabularySchema.virtual('isDueForReview').get(function() {
-  if (!this.nextReviewDate || !this.isLearned) return false;
-  return new Date() >= this.nextReviewDate;
-});
-
-// ===============================================
-// PRE-SAVE MIDDLEWARE (like user.js pattern)
-// ===============================================
-
-VocabularySchema.pre('save', function(next) {
-  // Auto set learnedAt when marking as learned
-  if (this.isModified('isLearned')) {
-    if (this.isLearned && !this.learnedAt) {
-      this.learnedAt = new Date();
-    } else if (!this.isLearned) {
-      this.learnedAt = null;
-    }
-  }
-  
-  // Clean up empty strings
-  if (this.pronunciation === '') this.pronunciation = null;
-  if (this.example === '') this.example = null;
-  if (this.audioUrl === '') this.audioUrl = null;
-  if (this.imageUrl === '') this.imageUrl = null;
-  
-  next();
-});
-
-// ===============================================
-// STATIC METHODS (following course.js pattern)
-// ===============================================
-
-VocabularySchema.statics.getUserStats = function(userId) {
-  return this.aggregate([
-    { 
-      $match: { 
-        userId: new mongoose.Types.ObjectId(userId), 
-        isActive: true 
-      } 
-    },
-    {
-      $group: {
-        _id: null,
-        totalWords: { $sum: 1 },
-        learnedWords: { 
-          $sum: { $cond: [{ $eq: ['$isLearned', true] }, 1, 0] } 
-        },
-        unlearnedWords: { 
-          $sum: { $cond: [{ $eq: ['$isLearned', false] }, 1, 0] } 
-        },
-        averageDifficulty: { $avg: '$difficulty' },
-        totalReviews: { $sum: '$reviewCount' },
-        totalAttempts: { $sum: '$totalAttempts' },
-        totalCorrect: { $sum: '$correctAnswers' }
-      }
-    },
-    {
-      $addFields: {
-        progressPercentage: {
-          $cond: [
-            { $eq: ['$totalWords', 0] },
-            0,
-            { $multiply: [{ $divide: ['$learnedWords', '$totalWords'] }, 100] }
-          ]
-        },
-        overallSuccessRate: {
-          $cond: [
-            { $eq: ['$totalAttempts', 0] },
-            0,
-            { $multiply: [{ $divide: ['$totalCorrect', '$totalAttempts'] }, 100] }
-          ]
-        }
-      }
-    }
-  ]);
+// Method to get definition by context
+VocabularySchema.methods.getDefinitionByContext = function(context) {
+  return this.definitions.find(def => def.context === context) || this.definitions[0];
 };
 
-// Export the model (following same pattern)
-export const Vocabulary = mongoose.model("Vocabulary", VocabularySchema);
+// Method to check if word belongs to theme
+VocabularySchema.methods.belongsToTheme = function(theme) {
+  return this.theme_categories.includes(theme);
+};
+
+// Static method to search vocabulary
+VocabularySchema.statics.searchWords = function(query, options = {}) {
+  const {
+    difficulty,
+    theme,
+    tags,
+    limit = 20,
+    skip = 0
+  } = options;
+  
+  let searchQuery = {
+    is_active: true,
+    $text: { $search: query }
+  };
+  
+  if (difficulty) {
+    searchQuery.difficulty = difficulty;
+  }
+  
+  if (theme) {
+    searchQuery.theme_categories = theme;
+  }
+  
+  if (tags && tags.length > 0) {
+    searchQuery.tags = { $in: tags };
+  }
+  
+  return this.find(searchQuery)
+    .sort({ score: { $meta: 'textScore' }, frequency_score: -1 })
+    .limit(limit)
+    .skip(skip);
+};
+
+// Static method to get vocabulary by theme
+VocabularySchema.statics.getByTheme = function(theme, difficulty = null) {
+  let query = {
+    theme_categories: theme,
+    is_active: true
+  };
+  
+  if (difficulty) {
+    query.difficulty = difficulty;
+  }
+  
+  return this.find(query).sort({ frequency_score: -1 });
+};
+
+// Ensure virtual fields are serialized
+VocabularySchema.set('toJSON', { virtuals: true });
+VocabularySchema.set('toObject', { virtuals: true });

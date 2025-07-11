@@ -1,5 +1,5 @@
 // ===============================================
-// COURSE MODEL - LINGUALEAP
+// COURSE MODEL - SKILL-BASED ARCHITECTURE
 // ===============================================
 
 import mongoose from "mongoose";
@@ -22,27 +22,28 @@ export const CourseSchema = new Schema(
       maxlength: 500
     },
     
-    // Course Classification
-    level: {
-      type: String,
-      required: true,
-      enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
-      index: true
-    },
+    // Skill-based Classification (NEW)
     category: {
       type: String,
       required: true,
       enum: [
-        'general',        // General English
-        'business',       // Business English
-        'travel',         // Travel English
-        'ielts',         // IELTS Preparation
-        'conversation',   // Conversation Practice
-        'grammar',       // Grammar Focus
-        'vocabulary'     // Vocabulary Building
+        'basic_communication',  // "Bắt đầu với tiếng Anh"
+        'daily_life',          // "Giao tiếp hàng ngày"
+        'food_dining',         // "Ăn uống & Mua sắm"
+        'work_career',         // "Công việc & Sự nghiệp"
+        'travel_transport',    // "Du lịch & Giao thông"
+        'family_friends',      // "Gia đình & Bạn bè"
+        'health_fitness',      // "Sức khỏe & Thể dục"
+        'business'             // "Tiếng Anh Thương mại"
       ],
       index: true
     },
+    
+    skill_focus: [{
+      type: String,
+      enum: ['vocabulary', 'grammar', 'listening', 'speaking', 'reading', 'writing'],
+      required: true
+    }],
     
     // Visual & Media
     thumbnail: {
@@ -55,109 +56,63 @@ export const CourseSchema = new Schema(
     },
     
     // Course Structure
-    estimatedDuration: {
+    total_units: {
+      type: Number,
+      default: 0
+    },
+    estimated_duration: {
       type: Number, // Total estimated hours
       required: true,
       min: 1
     },
-    totalUnits: {
-      type: Number,
-      default: 0
-    },
-    totalLessons: {
-      type: Number,
-      default: 0
-    },
-    totalExercises: {
-      type: Number,
-      default: 0
+    
+    // Prerequisites & Challenge Test (NEW)
+    prerequisites: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Course'
+    }],
+    
+    challenge_test: {
+      total_questions: {
+        type: Number,
+        default: 25
+      },
+      pass_percentage: {
+        type: Number,
+        default: 80
+      },
+      must_correct_questions: [{
+        type: Number // câu liệt phải đúng
+      }],
+      time_limit: {
+        type: Number,
+        default: 30 // minutes
+      }
     },
     
     // Access Control
-    isPremium: {
+    is_premium: {
       type: Boolean,
       default: false
     },
-    isPublished: {
+    is_published: {
       type: Boolean,
       default: false
     },
-    publishedAt: {
+    published_at: {
       type: Date,
       default: null
     },
     
-    // Learning Objectives
-    learningObjectives: [{
-      type: String,
-      trim: true,
-      maxlength: 200
-    }],
-    prerequisites: [{
-      type: String,
-      trim: true,
-      maxlength: 100
-    }],
-    
-    // Course Metadata
-    difficulty: {
-      type: String,
-      enum: ['beginner', 'intermediate', 'advanced'],
-      required: true,
-      index: true
-    },
-    language: {
-      from: {
-        type: String,
-        default: 'vi' // Vietnamese
-      },
-      to: {
-        type: String,
-        default: 'en' // English
-      }
-    },
-    
-    // Gamification
-    totalXP: {
-      type: Number,
-      default: 0 // Total XP available in this course
-    },
-    badgeIcon: {
-      type: String,
-      default: null // Icon for course completion badge
-    },
-    
-    // Statistics (updated by triggers)
-    enrollmentCount: {
+    // Ordering & Admin
+    sort_order: {
       type: Number,
       default: 0
     },
-    completionCount: {
-      type: Number,
-      default: 0
-    },
-    averageRating: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5
-    },
-    
-    // Admin Fields
-    createdBy: {
+    created_by: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true
-    },
-    lastUpdatedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    
-    // Ordering
-    sortOrder: {
-      type: Number,
-      default: 0
     }
   },
   {
@@ -166,17 +121,10 @@ export const CourseSchema = new Schema(
   }
 );
 
-// Indexes for better performance
-CourseSchema.index({ level: 1, category: 1 });
-CourseSchema.index({ difficulty: 1 });
-CourseSchema.index({ isPremium: 1, isPublished: 1 });
-CourseSchema.index({ sortOrder: 1 });
-
-// Virtual for completion rate
-CourseSchema.virtual('completionRate').get(function() {
-  if (this.enrollmentCount === 0) return 0;
-  return Math.round((this.completionCount / this.enrollmentCount) * 100);
-});
+// Indexes for performance
+CourseSchema.index({ category: 1, is_published: 1 });
+CourseSchema.index({ skill_focus: 1 });
+CourseSchema.index({ sort_order: 1 });
 
 // Virtual for course slug
 CourseSchema.virtual('slug').get(function() {

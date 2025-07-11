@@ -1,5 +1,5 @@
 // ===============================================
-// LESSON MODEL - LINGUALEAP
+// LESSON MODEL - VOCABULARY PROMPTS + AI CONFIG
 // ===============================================
 
 import mongoose from "mongoose";
@@ -22,190 +22,169 @@ export const LessonSchema = new Schema(
     },
     
     // Relationships
-    courseId: {
+    course_id: {
       type: Schema.Types.ObjectId,
       ref: 'Course',
       required: true,
       index: true
     },
-    unitId: {
+    unit_id: {
       type: Schema.Types.ObjectId,
       ref: 'Unit',
       required: true,
       index: true
     },
     
-    // Lesson Type
-    type: {
+    // Lesson Content Focus
+    lesson_type: {
       type: String,
       required: true,
-      enum: [
-        'vocabulary',     // Từ vựng
-        'grammar',        // Ngữ pháp
-        'listening',      // Nghe
-        'speaking',       // Nói
-        'reading',        // Đọc
-        'writing',        // Viết
-        'conversation',   // Hội thoại
-        'review',         // Ôn tập
-        'test'           // Kiểm tra
-      ],
-      index: true
+      enum: ['vocabulary', 'grammar', 'mixed'],
+      default: 'vocabulary'
     },
-    
-    // Visual & Media
-    icon: {
+    objective: {
       type: String,
-      default: null
-    },
-    thumbnail: {
-      type: String,
-      default: null
+      required: true,
+      trim: true,
+      maxlength: 200 // "Học cách chào hỏi cơ bản"
     },
     
-    // Lesson Content
-    introduction: {
-      text: String,
-      audioUrl: String
-    },
-    
-    // Learning Materials
-    vocabulary: [{
-      word: {
-        type: String,
-        required: true,
-        trim: true
+    // VOCABULARY PROMPTS POOL - KEY SECTION
+    vocabulary_pool: [{
+      vocabulary_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Vocabulary',
+        required: true
       },
-      meaning: {
+      context_in_lesson: {
         type: String,
-        required: true,
-        trim: true
+        required: true // "greeting words", "polite expressions"
       },
-      pronunciation: String,
-      audioUrl: String,
-      imageUrl: String,
-      example: {
-        sentence: String,
-        translation: String,
-        audioUrl: String
+      is_main_focus: {
+        type: Boolean,
+        default: true // true = từ chính, false = từ phụ
+      },
+      introduction_order: {
+        type: Number,
+        required: true // thứ tự giới thiệu trong lesson
+      },
+      difficulty_weight: {
+        type: Number,
+        min: 1,
+        max: 5,
+        default: 3 // ảnh hưởng exercise generation
       }
     }],
     
-    grammarFocus: {
-      title: String,
-      explanation: String,
-      examples: [{
-        sentence: String,
-        translation: String,
-        highlight: String // Part to highlight
+    // Context cho AI Generation - KEY SECTION
+    lesson_context: {
+      situation: {
+        type: String,
+        required: true // "meeting new people", "ordering food"
+      },
+      cultural_context: {
+        type: String,
+        default: "Vietnamese social customs"
+      },
+      use_cases: [{
+        type: String // ["formal greeting", "casual greeting"]
+      }],
+      avoid_topics: [{
+        type: String // ["romantic", "religious", "political"]
       }]
     },
     
-    // Lesson Structure
-    totalExercises: {
-      type: Number,
-      default: 0
-    },
-    estimatedDuration: {
-      type: Number, // Minutes
-      required: true,
-      min: 1
-    },
-    
-    // Difficulty & Requirements
-    difficulty: {
-      type: String,
-      enum: ['easy', 'medium', 'hard'],
-      default: 'easy'
-    },
-    
-    // Access Control
-    isPremium: {
-      type: Boolean,
-      default: false
-    },
-    isPublished: {
-      type: Boolean,
-      default: false
-    },
-    
-    // Unlock Requirements
-    requiresUnlock: {
-      type: Boolean,
-      default: true
-    },
-    unlockRequirements: {
-      previousLessonId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Lesson',
-        default: null
+    // Grammar Integration (nhẹ)
+    grammar_point: {
+      title: {
+        type: String // "Present Simple with 'be'"
       },
-      minimumScore: {
-        type: Number,
-        default: 80 // Minimum percentage score from previous lesson
+      explanation: {
+        type: String
       },
-      requiredHearts: {
+      pattern: {
+        type: String // "I am + adjective"
+      },
+      examples: [{
+        type: String // "I am happy", "You are nice"
+      }]
+    },
+    
+    // Exercise Generation Config - KEY SECTION
+    exercise_generation: {
+      total_exercises: {
         type: Number,
-        default: 1 // Hearts needed to start lesson
+        default: 7,
+        min: 5,
+        max: 10
+      },
+      exercise_distribution: {
+        multiple_choice: {
+          type: Number,
+          default: 2
+        },
+        fill_blank: {
+          type: Number,
+          default: 2
+        },
+        listening: {
+          type: Number,
+          default: 1
+        },
+        translation: {
+          type: Number,
+          default: 1
+        },
+        word_matching: {
+          type: Number,
+          default: 1
+        },
+        listen_choose: {
+          type: Number,
+          default: 0
+        },
+        speak_repeat: {
+          type: Number,
+          default: 0
+        }
+      },
+      difficulty_progression: {
+        type: Boolean,
+        default: true // true = dễ → khó
+      },
+      vocabulary_coverage: {
+        type: String,
+        enum: ['all', 'random_subset', 'main_focus_only'],
+        default: 'all'
       }
     },
     
-    // Gamification
-    xpReward: {
-      type: Number,
-      default: 10 // Base XP for completing lesson
+    // Lesson Metadata
+    estimated_duration: {
+      type: Number, // 15-20 minutes
+      required: true,
+      min: 10,
+      max: 30
     },
-    perfectScoreBonus: {
+    xp_reward: {
       type: Number,
-      default: 5 // Extra XP for perfect score
+      default: 10
     },
     
-    // Lesson Goals
-    targetAccuracy: {
-      type: Number,
-      default: 80 // Target accuracy percentage
+    // Access Control
+    is_premium: {
+      type: Boolean,
+      default: false
     },
-    passThreshold: {
-      type: Number,
-      default: 70 // Minimum score to pass
+    is_published: {
+      type: Boolean,
+      default: false
     },
     
     // Ordering
-    sortOrder: {
-      type: Number,
-      required: true,
-      index: true
-    },
-    
-    // Statistics
-    totalAttempts: {
+    sort_order: {
       type: Number,
       default: 0
-    },
-    averageScore: {
-      type: Number,
-      default: 0
-    },
-    completionRate: {
-      type: Number,
-      default: 0
-    },
-    
-    // Admin Fields
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    lastUpdatedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    
-    // Lesson Notes (for instructors)
-    teachingNotes: {
-      type: String,
-      default: null
     }
   },
   {
@@ -214,32 +193,38 @@ export const LessonSchema = new Schema(
   }
 );
 
-// Compound indexes
-LessonSchema.index({ unitId: 1, sortOrder: 1 });
-LessonSchema.index({ courseId: 1, type: 1 });
-LessonSchema.index({ isPremium: 1, isPublished: 1 });
-LessonSchema.index({ type: 1, difficulty: 1 });
+// Indexes for performance
+LessonSchema.index({ course_id: 1, unit_id: 1, sort_order: 1 });
+LessonSchema.index({ lesson_type: 1 });
+LessonSchema.index({ is_published: 1 });
+LessonSchema.index({ 'vocabulary_pool.vocabulary_id': 1 });
 
-// Virtual for lesson status
+// Virtual fields for user progress
 LessonSchema.virtual('status').get(function() {
-  // Will be set based on user progress
-  return this._status || 'locked'; // locked, available, completed
+  return this._status || 'locked'; // 'locked', 'available', 'in_progress', 'completed'
 });
 
-// Virtual for user score
-LessonSchema.virtual('userScore').get(function() {
-  return this._userScore || null;
+LessonSchema.virtual('is_completed').get(function() {
+  return this._is_completed || false;
 });
 
-// Virtual for completion status
-LessonSchema.virtual('isCompleted').get(function() {
-  return this._isCompleted || false;
+LessonSchema.virtual('is_unlocked').get(function() {
+  return this._is_unlocked !== undefined ? this._is_unlocked : false;
 });
 
-// Virtual for unlock status
-LessonSchema.virtual('isUnlocked').get(function() {
-  return this._isUnlocked !== undefined ? this._isUnlocked : false;
+LessonSchema.virtual('user_score').get(function() {
+  return this._user_score || 0;
 });
+
+// Method to get main vocabulary words
+LessonSchema.methods.getMainVocabulary = function() {
+  return this.vocabulary_pool.filter(item => item.is_main_focus);
+};
+
+// Method to get vocabulary by difficulty
+LessonSchema.methods.getVocabularyByDifficulty = function(difficulty) {
+  return this.vocabulary_pool.filter(item => item.difficulty_weight === difficulty);
+};
 
 // Ensure virtual fields are serialized
 LessonSchema.set('toJSON', { virtuals: true });
