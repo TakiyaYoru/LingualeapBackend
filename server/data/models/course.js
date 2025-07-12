@@ -33,16 +33,26 @@ export const CourseSchema = new Schema(
       type: String,
       required: true,
       enum: [
-        'general',        // General English
-        'business',       // Business English
-        'travel',         // Travel English
-        'ielts',         // IELTS Preparation
-        'conversation',   // Conversation Practice
-        'grammar',       // Grammar Focus
-        'vocabulary'     // Vocabulary Building
+        'basic_communication',  // Giao tiếp cơ bản
+        'daily_life',          // Cuộc sống hàng ngày
+        'business',            // Tiếng Anh thương mại
+        'travel',              // Du lịch
+        'education',           // Giáo dục
+        'entertainment',       // Giải trí
+        'health_fitness',      // Sức khỏe và thể dục
+        'technology',          // Công nghệ
+        'food_dining',         // Ẩm thực
+        'shopping'             // Mua sắm
       ],
       index: true
     },
+    
+    // Skill-based classification - NEW FIELD
+    skill_focus: [{
+      type: String,
+      enum: ['vocabulary', 'grammar', 'listening', 'speaking', 'reading', 'writing', 'pronunciation'],
+      required: true
+    }],
     
     // Visual & Media
     thumbnail: {
@@ -73,6 +83,39 @@ export const CourseSchema = new Schema(
       default: 0
     },
     
+    // Prerequisites & Challenge - UPDATED
+    prerequisites: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Course',
+      default: []
+    }],
+    
+    // Challenge Test - NEW FIELD
+    challenge_test: {
+      total_questions: {
+        type: Number,
+        default: 25,
+        min: 10,
+        max: 50
+      },
+      pass_percentage: {
+        type: Number,
+        default: 80,
+        min: 60,
+        max: 100
+      },
+      must_correct_questions: [{
+        type: Number,
+        min: 1
+      }],
+      time_limit: {
+        type: Number, // minutes
+        default: 30,
+        min: 10,
+        max: 120
+      }
+    },
+    
     // Access Control
     isPremium: {
       type: Boolean,
@@ -92,11 +135,6 @@ export const CourseSchema = new Schema(
       type: String,
       trim: true,
       maxlength: 200
-    }],
-    prerequisites: [{
-      type: String,
-      trim: true,
-      maxlength: 100
     }],
     
     // Course Metadata
@@ -171,6 +209,7 @@ CourseSchema.index({ level: 1, category: 1 });
 CourseSchema.index({ difficulty: 1 });
 CourseSchema.index({ isPremium: 1, isPublished: 1 });
 CourseSchema.index({ sortOrder: 1 });
+CourseSchema.index({ skill_focus: 1 }); // NEW INDEX
 
 // Virtual for completion rate
 CourseSchema.virtual('completionRate').get(function() {

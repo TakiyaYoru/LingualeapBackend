@@ -6,6 +6,20 @@ import mongoose from 'mongoose';
 import { config } from 'dotenv';
 import { db } from './data/mongoRepo.js';
 
+// Import models from index file
+import { 
+  User, 
+  Course, 
+  Unit, 
+  Lesson, 
+  Exercise, 
+  Vocabulary,
+  UserVocabularyProgress,
+  UserExerciseProgress,
+  ChallengeTest,
+  UserChallengeAttempt
+} from './data/models/index.js';
+
 // Load environment variables
 config();
 

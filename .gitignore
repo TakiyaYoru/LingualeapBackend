@@ -16,7 +16,7 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
-
+google-credentials.json
 # Logs
 logs
 *.log

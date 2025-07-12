@@ -35,7 +35,7 @@ export const LessonSchema = new Schema(
       index: true
     },
     
-    // Lesson Type
+    // Lesson Type - UPDATED
     type: {
       type: String,
       required: true,
@@ -51,6 +51,71 @@ export const LessonSchema = new Schema(
         'test'           // Kiểm tra
       ],
       index: true
+    },
+    
+    // Lesson Type Focus - NEW FIELD
+    lesson_type: {
+      type: String,
+      enum: ['vocabulary', 'grammar', 'mixed'],
+      default: 'vocabulary'
+    },
+    
+    // Lesson Objective - NEW FIELD
+    objective: {
+      type: String,
+      trim: true,
+      maxlength: 200
+    },
+    
+    // VOCABULARY POOL - NEW FIELD
+    vocabulary_pool: [{
+      vocabulary_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Vocabulary'
+      },
+      context_in_lesson: {
+        type: String,
+        trim: true,
+        maxlength: 100
+      },
+      is_main_focus: {
+        type: Boolean,
+        default: true
+      },
+      introduction_order: {
+        type: Number,
+        default: 1
+      },
+      difficulty_weight: {
+        type: Number,
+        default: 3,
+        min: 1,
+        max: 5
+      }
+    }],
+    
+    // LESSON CONTEXT - NEW FIELD
+    lesson_context: {
+      situation: {
+        type: String,
+        trim: true,
+        maxlength: 200
+      },
+      cultural_context: {
+        type: String,
+        trim: true,
+        maxlength: 300
+      },
+      use_cases: [{
+        type: String,
+        trim: true,
+        maxlength: 100
+      }],
+      avoid_topics: [{
+        type: String,
+        trim: true,
+        maxlength: 100
+      }]
     },
     
     // Visual & Media
@@ -69,7 +134,7 @@ export const LessonSchema = new Schema(
       audioUrl: String
     },
     
-    // Learning Materials
+    // Learning Materials - DEPRECATED (use vocabulary_pool instead)
     vocabulary: [{
       word: {
         type: String,
@@ -99,6 +164,86 @@ export const LessonSchema = new Schema(
         translation: String,
         highlight: String // Part to highlight
       }]
+    },
+    
+    // GRAMMAR INTEGRATION - NEW FIELD
+    grammar_point: {
+      title: {
+        type: String,
+        trim: true,
+        maxlength: 100
+      },
+      explanation: {
+        type: String,
+        trim: true,
+        maxlength: 500
+      },
+      pattern: {
+        type: String,
+        trim: true,
+        maxlength: 100
+      },
+      examples: [{
+        type: String,
+        trim: true,
+        maxlength: 200
+      }]
+    },
+    
+    // EXERCISE GENERATION CONFIG - NEW FIELD
+    exercise_generation: {
+      total_exercises: {
+        type: Number,
+        default: 6,
+        min: 4,
+        max: 10
+      },
+      exercise_distribution: {
+        multiple_choice: {
+          type: Number,
+          default: 2,
+          min: 0
+        },
+        fill_blank: {
+          type: Number,
+          default: 2,
+          min: 0
+        },
+        listening: {
+          type: Number,
+          default: 1,
+          min: 0
+        },
+        translation: {
+          type: Number,
+          default: 1,
+          min: 0
+        },
+        word_matching: {
+          type: Number,
+          default: 1,
+          min: 0
+        },
+        listen_choose: {
+          type: Number,
+          default: 1,
+          min: 0
+        },
+        speak_repeat: {
+          type: Number,
+          default: 1,
+          min: 0
+        }
+      },
+      difficulty_progression: {
+        type: Boolean,
+        default: true
+      },
+      vocabulary_coverage: {
+        type: String,
+        enum: ['all', 'random_subset'],
+        default: 'all'
+      }
     },
     
     // Lesson Structure
@@ -219,6 +364,7 @@ LessonSchema.index({ unitId: 1, sortOrder: 1 });
 LessonSchema.index({ courseId: 1, type: 1 });
 LessonSchema.index({ isPremium: 1, isPublished: 1 });
 LessonSchema.index({ type: 1, difficulty: 1 });
+LessonSchema.index({ lesson_type: 1 }); // NEW INDEX
 
 // Virtual for lesson status
 LessonSchema.virtual('status').get(function() {

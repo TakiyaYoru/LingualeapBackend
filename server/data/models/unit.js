@@ -83,6 +83,47 @@ export const UnitSchema = new Schema(
       min: 5
     },
     
+    // Prerequisites & Challenge - UPDATED
+    prerequisites: {
+      previous_unit_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Unit',
+        default: null
+      },
+      minimum_score: {
+        type: Number,
+        default: 80, // 80% from previous unit
+        min: 0,
+        max: 100
+      },
+      required_hearts: {
+        type: Number,
+        default: 1, // hearts needed to unlock
+        min: 0,
+        max: 5
+      }
+    },
+    
+    // Challenge Test - NEW FIELD
+    challenge_test: {
+      total_questions: {
+        type: Number,
+        default: 10,
+        min: 5,
+        max: 20
+      },
+      pass_percentage: {
+        type: Number,
+        default: 80,
+        min: 60,
+        max: 100
+      },
+      must_correct_questions: [{
+        type: Number,
+        min: 1
+      }]
+    },
+    
     // Learning Content
     vocabulary: [{
       word: {
@@ -135,7 +176,7 @@ export const UnitSchema = new Schema(
       default: false
     },
     
-    // Unlock Requirements
+    // Unlock Requirements - DEPRECATED (use prerequisites instead)
     requiresUnlock: {
       type: Boolean,
       default: true

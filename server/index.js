@@ -21,8 +21,72 @@ const __dirname = path.dirname(__filename);
 import { connectDB, db } from './config.js';
 import { authTypeDefs, authResolvers } from './graphql/authentication.js';
 import { courseTypeDefs, courseResolvers } from './graphql/courses.js';
-import { vocabularyTypeDefs, vocabularyResolvers } from './graphql/vocabulary.js'; // ← NEW
+import { vocabularyTypeDefs, vocabularyResolvers } from './graphql/vocabulary.js';
+import { aiGenerationTypeDefs, aiGenerationResolvers } from './graphql/aiGeneration.js';
+import { contentMutationTypeDefs, contentMutationResolvers } from './graphql/contentManagement.js';
+import { challengeTypeDefs, challengeResolvers } from './graphql/challenges.js';
 import { authUtils } from './utils/auth.js';
+
+const progressTypeDefs = `
+  type UserVocabularyProgress {
+    id: ID!
+    userId: ID!
+    vocabularyId: VocabularyWord!
+    proficiencyLevel: String!
+    reviewCount: Int!
+    lastReviewedAt: String
+    nextReviewAt: String
+    customNotes: String
+    createdAt: String
+    updatedAt: String
+  }
+
+  type UserExerciseProgress {
+    id: ID!
+    userId: ID!
+    exerciseId: Exercise!
+    status: String!
+    score: Float
+    attempts: Int!
+    lastAttemptedAt: String
+    createdAt: String
+    updatedAt: String
+  }
+
+  type ProgressStat {
+    proficiencyLevel: String!
+    count: Int!
+  }
+
+  extend type Query {
+    myVocabularyProgress: [UserVocabularyProgress!]!
+    myVocabularyProgressStats: [ProgressStat!]!
+    myExerciseProgress: [UserExerciseProgress!]!
+  }
+
+  extend type Mutation {
+    upsertVocabularyProgress(
+      vocabularyId: ID!,
+      proficiencyLevel: String,
+      reviewCount: Int,
+      lastReviewedAt: String,
+      nextReviewAt: String,
+      customNotes: String
+    ): UserVocabularyProgress!
+
+    deleteVocabularyProgress(vocabularyId: ID!): Boolean!
+
+    upsertExerciseProgress(
+      exerciseId: ID!,
+      status: String,
+      score: Float,
+      attempts: Int,
+      lastAttemptedAt: String
+    ): UserExerciseProgress!
+
+    deleteExerciseProgress(exerciseId: ID!): Boolean!
+  }
+`;
 
 // Create GraphQL schema
 const schema = createSchema({
@@ -39,6 +103,10 @@ const schema = createSchema({
     ${authTypeDefs}
     ${courseTypeDefs}
     ${vocabularyTypeDefs}
+    ${aiGenerationTypeDefs}
+    ${contentMutationTypeDefs}
+    ${challengeTypeDefs}
+    ${progressTypeDefs}
   `,
   resolvers: {
     Query: {
@@ -46,12 +114,76 @@ const schema = createSchema({
       health: () => '✅ Server is healthy and ready to learn English!',
       ...authResolvers.Query,
       ...courseResolvers.Query,
-      ...vocabularyResolvers.Query, // ← NEW
+      ...vocabularyResolvers.Query,
+      ...aiGenerationResolvers.Query,
+      ...challengeResolvers.Query,
+      // Progress tracking queries
+      myVocabularyProgress: async (parent, args, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        return await db.userVocabularyProgress.getByUser(context.user._id);
+      },
+      myVocabularyProgressStats: async (parent, args, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        const stats = await db.userVocabularyProgress.getStats(context.user._id);
+        // Chuyển đổi kết quả aggregate sang dạng { proficiencyLevel, count }
+        return stats.map(s => ({ proficiencyLevel: s._id, count: s.count }));
+      },
+      myExerciseProgress: async (parent, args, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        return await db.userExerciseProgress.getByUser(context.user._id);
+      },
     },
     Mutation: {
       ...authResolvers.Mutation,
       ...courseResolvers.Mutation,
-      ...vocabularyResolvers.Mutation, // ← NEW
+      ...vocabularyResolvers.Mutation,
+      ...aiGenerationResolvers.Mutation,
+      ...contentMutationResolvers.Mutation,
+      ...challengeResolvers.Mutation,
+      // Progress tracking mutations
+      upsertVocabularyProgress: async (parent, args, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        const { vocabularyId, proficiencyLevel, reviewCount, lastReviewedAt, nextReviewAt, customNotes } = args;
+        const doc = await db.userVocabularyProgress.upsert({
+          userId: context.user._id,
+          vocabularyId,
+          proficiencyLevel,
+          reviewCount,
+          lastReviewedAt,
+          nextReviewAt,
+          customNotes
+        });
+        return {
+          id: doc._id,
+          ...doc.toObject()
+        };
+      },
+      deleteVocabularyProgress: async (parent, { vocabularyId }, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        await db.userVocabularyProgress.delete(context.user._id, vocabularyId);
+        return true;
+      },
+      upsertExerciseProgress: async (parent, args, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        const { exerciseId, status, score, attempts, lastAttemptedAt } = args;
+        const doc = await db.userExerciseProgress.upsert({
+          userId: context.user._id,
+          exerciseId,
+          status,
+          score,
+          attempts,
+          lastAttemptedAt
+        });
+        return {
+          id: doc._id,
+          ...doc.toObject()
+        };
+      },
+      deleteExerciseProgress: async (parent, { exerciseId }, context) => {
+        if (!context.user) throw new Error('Not authenticated');
+        await db.userExerciseProgress.delete(context.user._id, exerciseId);
+        return true;
+      },
     },
   },
 });
@@ -149,7 +281,8 @@ const startServer = async () => {
       console.log('📝 Available Features:');
       console.log('   ✅ Authentication (login, register, me)');
       console.log('   ✅ Course Management (courses, units, lessons)');
-      console.log('   ✅ Vocabulary System (CRUD, filters, stats)'); // ← NEW
+      console.log('   ✅ Vocabulary System (CRUD, filters, stats)');
+      console.log('   ✅ AI Exercise Generation (Claude + TTS)');
       console.log('   ✅ GraphQL API with JWT authentication');
       console.log('=====================================\n');
       
@@ -157,6 +290,7 @@ const startServer = async () => {
       console.log('   📚 Vocabulary: myVocabulary, addVocabularyWord, toggleVocabularyLearned');
       console.log('   📊 Stats: myVocabularyStats, myVocabularyCategories');
       console.log('   🔄 Review: wordsForReview, recordVocabularyReview');
+      console.log('   🤖 AI: generateLessonExercises, generateExercise, generateAudio');
       console.log('=====================================\n');
     });
   } catch (error) {

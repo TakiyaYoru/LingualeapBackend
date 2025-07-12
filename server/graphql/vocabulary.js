@@ -18,12 +18,14 @@ export const vocabularyTypeDefs = `
     meaning: String!
     pronunciation: String
     example: String
+    difficulty: String!
+    frequency_score: Int!
+    definitions: [VocabularyDefinition!]!
     isLearned: Boolean!
     createdAt: String!
     learnedAt: String
     category: String!
     tags: [String!]!
-    difficulty: Int!
     reviewCount: Int!
     correctAnswers: Int!
     totalAttempts: Int!
@@ -43,17 +45,19 @@ export const vocabularyTypeDefs = `
     isDueForReview: Boolean
   }
 
+  type VocabularyDefinition {
+    context: String!
+    meaning: String!
+    example: String
+  }
+
   # Vocabulary Statistics
   type VocabularyStats {
     totalWords: Int!
     learnedWords: Int!
-    unlearnedWords: Int!
-    progressPercentage: Float!
-    averageDifficulty: Float
-    totalReviews: Int!
     totalAttempts: Int!
-    totalCorrect: Int!
-    overallSuccessRate: Float!
+    correctAnswers: Int!
+    averageFrequency: Float!
   }
 
   # Input Types (following RegisterInput pattern)
@@ -62,9 +66,11 @@ export const vocabularyTypeDefs = `
     meaning: String!
     pronunciation: String
     example: String
+    difficulty: String
+    frequency_score: Int
+    definitions: [VocabularyDefinitionInput!]
     category: String
     tags: [String!]
-    difficulty: Int
     source: String
     sourceReference: String
     lessonId: ID
@@ -74,14 +80,22 @@ export const vocabularyTypeDefs = `
     imageUrl: String
   }
 
+  input VocabularyDefinitionInput {
+    context: String!
+    meaning: String!
+    example: String
+  }
+
   input VocabularyUpdateInput {
     word: String
     meaning: String
     pronunciation: String
     example: String
+    difficulty: String
+    frequency_score: Int
+    definitions: [VocabularyDefinitionInput!]
     category: String
     tags: [String!]
-    difficulty: Int
     isLearned: Boolean
     audioUrl: String
     imageUrl: String
@@ -90,6 +104,7 @@ export const vocabularyTypeDefs = `
   input VocabularyFilterInput {
     isLearned: Boolean
     category: String
+    difficulty: String
     search: String
     sortBy: String
     limit: Int
@@ -270,7 +285,7 @@ export const vocabularyResolvers = {
           ...input,
           userId: user.userId,
           category: input.category || 'general',
-          difficulty: input.difficulty || 1,
+          difficulty: input.difficulty || "easy",
           tags: input.tags || [],
           source: input.source || 'manual',
           createdBy: user.userId

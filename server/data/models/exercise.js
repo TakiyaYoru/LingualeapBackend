@@ -21,6 +21,14 @@ export const ExerciseSchema = new Schema(
       maxlength: 500
     },
     
+    // Exercise Type Display - NEW FIELD
+    type_display_name: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: "Bài tập"
+    },
+    
     // Relationships
     courseId: {
       type: Schema.Types.ObjectId,
@@ -55,10 +63,67 @@ export const ExerciseSchema = new Schema(
         'word_matching',       // Ghép từ với nghĩa
         'sentence_building',   // Sắp xếp từ thành câu
         'true_false',          // Đúng/Sai
-        'drag_drop'            // Kéo thả
+        'drag_drop',           // Kéo thả
+        'listen_choose',       // Nghe và chọn hình ảnh
+        'speak_repeat'         // Nói và lặp lại
       ],
       index: true
     },
+    
+    // AI PROMPT TEMPLATE - NEW FIELD
+    prompt_template: {
+      system_context: {
+        type: String,
+        trim: true,
+        maxlength: 1000
+      },
+      main_prompt: {
+        type: String,
+        trim: true,
+        maxlength: 2000
+      },
+      variables: [{
+        type: String,
+        trim: true
+      }],
+      expected_output_format: {
+        type: Schema.Types.Mixed,
+        default: {}
+      },
+      fallback_template: {
+        type: Schema.Types.Mixed,
+        default: {}
+      }
+    },
+    
+    // GENERATION RULES - NEW FIELD
+    generation_rules: {
+      max_attempts: {
+        type: Number,
+        default: 3,
+        min: 1,
+        max: 5
+      },
+      validation_rules: [{
+        type: String,
+        trim: true
+      }],
+      difficulty_adaptation: {
+        type: Boolean,
+        default: true
+      },
+      content_filters: [{
+        type: String,
+        trim: true
+      }]
+    },
+    
+    // SKILL FOCUS - NEW FIELD
+    skill_focus: [{
+      type: String,
+      enum: ['vocabulary', 'listening', 'pronunciation', 'grammar', 'reading', 'speaking', 'writing'],
+      required: true
+    }],
     
     // Exercise Content - Base Fields
     question: {
@@ -94,7 +159,7 @@ export const ExerciseSchema = new Schema(
     sentenceBuilding: {
       targetSentence: {
         type: String,
-        required: true
+        required: false
       },
       words: [String], // Shuffled words
       translation: String
@@ -107,8 +172,8 @@ export const ExerciseSchema = new Schema(
     },
     difficulty: {
       type: String,
-      enum: ['easy', 'medium', 'hard'],
-      default: 'easy'
+      enum: ['beginner', 'intermediate', 'advanced'],
+      default: 'beginner'
     },
     
     // Feedback Messages
@@ -132,6 +197,16 @@ export const ExerciseSchema = new Schema(
     estimatedTime: {
       type: Number, // Seconds
       default: 30
+    },
+    
+    // AUDIO REQUIREMENTS - NEW FIELDS
+    requires_audio: {
+      type: Boolean,
+      default: false
+    },
+    requires_microphone: {
+      type: Boolean,
+      default: false
     },
     
     // Gamification
@@ -196,6 +271,7 @@ ExerciseSchema.index({ lessonId: 1, sortOrder: 1 });
 ExerciseSchema.index({ type: 1, difficulty: 1 });
 ExerciseSchema.index({ unitId: 1, type: 1 });
 ExerciseSchema.index({ courseId: 1, isPremium: 1 });
+ExerciseSchema.index({ skill_focus: 1 }); // NEW INDEX
 
 // Virtual for success rate
 ExerciseSchema.virtual('successRate').get(function() {

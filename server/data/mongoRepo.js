@@ -2,9 +2,10 @@
 // MONGODB REPOSITORY - LINGUALEAP
 // ===============================================
 
-import { User, Course, Unit, Lesson, Exercise } from "./models/index.js";
+import { User, Course, Unit, Lesson, Exercise, ChallengeTest, UserChallengeAttempt } from "./models/index.js";
 import bcrypt from "bcrypt";
 import mongoose from 'mongoose'; // ← ADD THIS LINE
+import { UserVocabularyProgress, UserExerciseProgress } from "./models/index.js";
 // ===============================================
 // USER REPOSITORY
 // ===============================================
@@ -207,16 +208,28 @@ const courseRepository = {
     try {
       console.log('📚 Getting all courses with filters:', filters);
       
-      const query = { isPublished: true };
+      const query = {};
       
-      // Apply filters
+      // Only filter by isPublished if explicitly specified
+      if (filters.isPublished !== undefined) {
+        query.isPublished = filters.isPublished;
+      } else {
+        // Default: show published courses only
+        query.isPublished = true;
+      }
+      
+      // Apply other filters
       if (filters.level) query.level = filters.level;
       if (filters.category) query.category = filters.category;
       if (filters.difficulty) query.difficulty = filters.difficulty;
       if (filters.isPremium !== undefined) query.isPremium = filters.isPremium;
+      if (filters.skill_focus && filters.skill_focus.length > 0) {
+        query.skill_focus = { $in: filters.skill_focus };
+      }
       
       const courses = await Course.find(query)
         .populate('createdBy', 'displayName')
+        .populate('prerequisites', 'title level category')
         .sort({ sortOrder: 1, createdAt: -1 });
       
       return courses;
@@ -230,7 +243,8 @@ const courseRepository = {
   async findById(id) {
     try {
       const course = await Course.findById(id)
-        .populate('createdBy', 'displayName');
+        .populate('createdBy', 'displayName')
+        .populate('prerequisites', 'title level category');
       return course;
     } catch (error) {
       console.error('❌ Error finding course:', error.message);
@@ -329,7 +343,7 @@ const unitRepository = {
     try {
       const unit = await Unit.findById(id)
         .populate('courseId', 'title level')
-        .populate('unlockRequirements.previousUnitId', 'title');
+        .populate('prerequisites.previous_unit_id', 'title sortOrder');
       return unit;
     } catch (error) {
       console.error('❌ Error finding unit:', error.message);
@@ -356,7 +370,7 @@ const unitRepository = {
       );
       
       console.log('✅ Unit created successfully:', savedUnit._id);
-      return await Unit.findById(savedUnit._id).populate('courseId', 'title level');
+      return await Unit.findById(savedUnit._id);
     } catch (error) {
       console.error('❌ Error creating unit:', error.message);
       throw error;
@@ -372,7 +386,7 @@ const unitRepository = {
         id, 
         updateData, 
         { new: true, runValidators: true }
-      ).populate('courseId', 'title level');
+      );
       
       if (unit) {
         console.log('✅ Unit updated successfully:', unit._id);
@@ -428,8 +442,6 @@ const lessonRepository = {
       if (filters.isPremium !== undefined) query.isPremium = filters.isPremium;
       
       const lessons = await Lesson.find(query)
-        .populate('unitId', 'title theme')
-        .populate('courseId', 'title level')
         .sort({ sortOrder: 1 });
       
       return lessons;
@@ -443,8 +455,6 @@ const lessonRepository = {
   async findById(id) {
     try {
       const lesson = await Lesson.findById(id)
-        .populate('unitId', 'title theme')
-        .populate('courseId', 'title level')
         .populate('unlockRequirements.previousLessonId', 'title');
       return lesson;
     } catch (error) {
@@ -477,9 +487,7 @@ const lessonRepository = {
       );
       
       console.log('✅ Lesson created successfully:', savedLesson._id);
-      return await Lesson.findById(savedLesson._id)
-        .populate('unitId', 'title theme')
-        .populate('courseId', 'title level');
+      return await Lesson.findById(savedLesson._id);
     } catch (error) {
       console.error('❌ Error creating lesson:', error.message);
       throw error;
@@ -495,8 +503,7 @@ const lessonRepository = {
         id, 
         updateData, 
         { new: true, runValidators: true }
-      ).populate('unitId', 'title theme')
-       .populate('courseId', 'title level');
+      );
       
       if (lesson) {
         console.log('✅ Lesson updated successfully:', lesson._id);
@@ -700,6 +707,10 @@ const vocabularyRepository = {
         query.category = filters.category;
       }
       
+      if (filters.difficulty) {
+        query.difficulty = filters.difficulty;
+      }
+      
       if (filters.search) {
         query.$or = [
           { word: { $regex: filters.search, $options: 'i' } },
@@ -719,7 +730,10 @@ const vocabularyRepository = {
             sort = { isLearned: -1, createdAt: -1 };
             break;
           case 'difficulty':
-            sort = { difficulty: -1, createdAt: -1 };
+            sort = { difficulty: 1, createdAt: -1 };
+            break;
+          case 'frequency':
+            sort = { frequency_score: -1, createdAt: -1 };
             break;
         }
       }
@@ -859,13 +873,9 @@ const vocabularyRepository = {
       return stats[0] || {
         totalWords: 0,
         learnedWords: 0,
-        unlearnedWords: 0,
-        progressPercentage: 0,
-        averageDifficulty: 0,
-        totalReviews: 0,
         totalAttempts: 0,
-        totalCorrect: 0,
-        overallSuccessRate: 0
+        correctAnswers: 0,
+        averageFrequency: 0
       };
     } catch (error) {
       console.error('❌ Error getting user vocabulary stats:', error.message);
@@ -931,6 +941,529 @@ const vocabularyRepository = {
   }
 };
 // ===============================================
+// USER VOCABULARY PROGRESS REPOSITORY
+// ===============================================
+
+const userVocabularyProgressRepository = {
+  async upsert({ userId, vocabularyId, proficiencyLevel, reviewCount, lastReviewedAt, nextReviewAt, customNotes }) {
+    try {
+      // Convert string IDs to ObjectId with validation
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const vocabularyIdObj = new mongoose.Types.ObjectId(vocabularyId);
+      
+      return await UserVocabularyProgress.findOneAndUpdate(
+        { userId: userIdObj, vocabularyId: vocabularyIdObj },
+        { $set: { proficiencyLevel, reviewCount, lastReviewedAt, nextReviewAt, customNotes } },
+        { upsert: true, new: true }
+      ).populate('vocabularyId');
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  },
+  async getByUser(userId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      return await UserVocabularyProgress.find({ userId: userIdObj }).populate('vocabularyId');
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid user ID format');
+      }
+      throw error;
+    }
+  },
+  async getByUserAndVocab(userId, vocabularyId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const vocabularyIdObj = new mongoose.Types.ObjectId(vocabularyId);
+      return await UserVocabularyProgress.findOne({ userId: userIdObj, vocabularyId: vocabularyIdObj }).populate('vocabularyId');
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  },
+  async getStats(userId) {
+    try {
+      // Tổng hợp số lượng từ theo proficiencyLevel
+      return await UserVocabularyProgress.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { $group: { _id: "$proficiencyLevel", count: { $sum: 1 } } }
+      ]);
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid user ID format');
+      }
+      throw error;
+    }
+  },
+  async delete(userId, vocabularyId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const vocabularyIdObj = new mongoose.Types.ObjectId(vocabularyId);
+      return await UserVocabularyProgress.findOneAndDelete({ userId: userIdObj, vocabularyId: vocabularyIdObj });
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  }
+};
+
+// ===============================================
+// USER EXERCISE PROGRESS REPOSITORY
+// ===============================================
+
+const userExerciseProgressRepository = {
+  async upsert({ userId, exerciseId, status, score, attempts, lastAttemptedAt }) {
+    try {
+      // Convert string IDs to ObjectId with validation
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const exerciseIdObj = new mongoose.Types.ObjectId(exerciseId);
+      
+      // Check if exercise exists first
+      const exercise = await Exercise.findById(exerciseIdObj);
+      if (!exercise) {
+        throw new Error('Exercise not found');
+      }
+      
+      return await UserExerciseProgress.findOneAndUpdate(
+        { userId: userIdObj, exerciseId: exerciseIdObj },
+        { $set: { status, score, attempts, lastAttemptedAt } },
+        { upsert: true, new: true }
+      ).populate('exerciseId');
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  },
+  async getByUser(userId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const progress = await UserExerciseProgress.find({ userId: userIdObj }).populate('exerciseId');
+      // Filter out progress entries where exercise doesn't exist
+      return progress.filter(p => p.exerciseId !== null);
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid user ID format');
+      }
+      throw error;
+    }
+  },
+  async getByUserAndExercise(userId, exerciseId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const exerciseIdObj = new mongoose.Types.ObjectId(exerciseId);
+      return await UserExerciseProgress.findOne({ userId: userIdObj, exerciseId: exerciseIdObj }).populate('exerciseId');
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  },
+  async delete(userId, exerciseId) {
+    try {
+      const userIdObj = new mongoose.Types.ObjectId(userId);
+      const exerciseIdObj = new mongoose.Types.ObjectId(exerciseId);
+      return await UserExerciseProgress.findOneAndDelete({ userId: userIdObj, exerciseId: exerciseIdObj });
+    } catch (error) {
+      if (error.name === 'BSONError') {
+        throw new Error('Invalid ID format provided');
+      }
+      throw error;
+    }
+  }
+};
+// ===============================================
+// CHALLENGE TEST REPOSITORY
+// ===============================================
+
+const challengeTestRepository = {
+  // Get all active challenge tests
+  async getAll(filters = {}) {
+    try {
+      console.log('🏆 Getting challenge tests with filters:', filters);
+      
+      const query = { is_active: true, is_published: true };
+      
+      if (filters.type) query.type = filters.type;
+      if (filters.difficulty) query.difficulty = filters.difficulty;
+      if (filters.target_id) query.target_id = filters.target_id;
+      
+      const challenges = await ChallengeTest.find(query)
+        .populate('created_by', 'displayName')
+        .sort({ createdAt: -1 });
+      
+      return challenges;
+    } catch (error) {
+      console.error('❌ Error getting challenge tests:', error.message);
+      throw error;
+    }
+  },
+
+  // Get challenge test by ID
+  async findById(id) {
+    try {
+      const challenge = await ChallengeTest.findById(id)
+        .populate('created_by', 'displayName');
+      return challenge;
+    } catch (error) {
+      console.error('❌ Error finding challenge test:', error.message);
+      throw error;
+    }
+  },
+
+  // Get challenge test by target
+  async getByTarget(targetId, type) {
+    try {
+      const challenge = await ChallengeTest.findOne({
+        target_id: targetId,
+        type: type,
+        is_active: true,
+        is_published: true
+      });
+      
+      return challenge;
+    } catch (error) {
+      console.error('❌ Error getting challenge by target:', error.message);
+      throw error;
+    }
+  },
+
+  // Create new challenge test
+  async create(challengeData, createdBy) {
+    try {
+      console.log('🏆 Creating new challenge test:', challengeData.title);
+      
+      const challenge = new ChallengeTest({
+        ...challengeData,
+        created_by: createdBy
+      });
+      
+      const savedChallenge = await challenge.save();
+      console.log('✅ Challenge test created successfully:', savedChallenge._id);
+      
+      return await ChallengeTest.findById(savedChallenge._id)
+        .populate('created_by', 'displayName');
+    } catch (error) {
+      console.error('❌ Error creating challenge test:', error.message);
+      throw error;
+    }
+  },
+
+  // Update challenge test
+  async update(id, updateData, updatedBy) {
+    try {
+      console.log('🏆 Updating challenge test:', id);
+      
+      const challenge = await ChallengeTest.findByIdAndUpdate(
+        id,
+        {
+          ...updateData,
+          last_updated_by: updatedBy
+        },
+        { new: true, runValidators: true }
+      ).populate('created_by', 'displayName');
+      
+      if (challenge) {
+        console.log('✅ Challenge test updated successfully:', challenge._id);
+      }
+      return challenge;
+    } catch (error) {
+      console.error('❌ Error updating challenge test:', error.message);
+      throw error;
+    }
+  },
+
+  // Delete challenge test
+  async delete(id) {
+    try {
+      console.log('🗑️ Deleting challenge test:', id);
+      const deleted = await ChallengeTest.findByIdAndDelete(id);
+      return !!deleted;
+    } catch (error) {
+      console.error('❌ Error deleting challenge test:', error.message);
+      throw error;
+    }
+  },
+
+  // Publish challenge test
+  async publish(id) {
+    try {
+      console.log('🏆 Publishing challenge test:', id);
+      const challenge = await ChallengeTest.findByIdAndUpdate(
+        id,
+        { 
+          is_published: true
+        },
+        { new: true, runValidators: true }
+      ).populate('created_by', 'displayName');
+      
+      if (challenge) {
+        console.log('✅ Challenge test published successfully:', challenge._id);
+      }
+      return challenge;
+    } catch (error) {
+      console.error('❌ Error publishing challenge test:', error.message);
+      throw error;
+    }
+  },
+
+  // Update challenge statistics
+  async updateStats(challengeId, passed, score) {
+    try {
+      const update = {
+        $inc: { total_attempts: 1 }
+      };
+      
+      if (passed) {
+        update.$inc.total_passes = 1;
+      }
+      
+      // Update average score
+      const challenge = await ChallengeTest.findById(challengeId);
+      if (challenge) {
+        const newTotal = challenge.average_score * challenge.total_attempts + score;
+        const newAverage = newTotal / (challenge.total_attempts + 1);
+        update.$set = { average_score: Math.round(newAverage * 100) / 100 };
+      }
+      
+      await ChallengeTest.findByIdAndUpdate(challengeId, update);
+    } catch (error) {
+      console.error('❌ Error updating challenge stats:', error.message);
+    }
+  }
+};
+
+// ===============================================
+// USER CHALLENGE ATTEMPT REPOSITORY
+// ===============================================
+
+const userChallengeAttemptRepository = {
+  // Get user's challenge attempts
+  async getByUser(userId, filters = {}) {
+    try {
+      console.log('🏆 Getting user challenge attempts for:', userId);
+      
+      const query = { user_id: userId };
+      
+      if (filters.type) query.type = filters.type;
+      if (filters.difficulty) query.difficulty = filters.difficulty;
+      if (filters.target_id) query.target_id = filters.target_id;
+      
+      const attempts = await UserChallengeAttempt.find(query)
+        .sort({ attempt_number: -1, started_at: -1 });
+      
+      return attempts;
+    } catch (error) {
+      console.error('❌ Error getting user challenge attempts:', error.message);
+      throw error;
+    }
+  },
+
+  // Get active session
+  async getActiveSession(userId, challengeId) {
+    try {
+      const session = await UserChallengeAttempt.findOne({
+        user_id: userId,
+        challenge_id: challengeId,
+        status: 'in_progress'
+      }).populate('challenge_id');
+      
+      return session;
+    } catch (error) {
+      console.error('❌ Error getting active session:', error.message);
+      throw error;
+    }
+  },
+
+  // Start new challenge attempt
+  async startAttempt(userId, challengeId, userLevel, userXp) {
+    try {
+      console.log('🏆 Starting challenge attempt for user:', userId);
+      
+      // Check if user can retry
+      const lastAttempt = await UserChallengeAttempt.findOne({
+        user_id: userId,
+        challenge_id: challengeId
+      }).sort({ attempt_number: -1 });
+      
+      if (lastAttempt && lastAttempt.can_retry_after && new Date() < lastAttempt.can_retry_after) {
+        throw new Error('Cannot retry yet. Please wait until ' + lastAttempt.can_retry_after.toLocaleString());
+      }
+      
+      const challenge = await ChallengeTest.findById(challengeId);
+      if (!challenge) {
+        throw new Error('Challenge test not found');
+      }
+      
+      const attemptNumber = lastAttempt ? lastAttempt.attempt_number + 1 : 1;
+      const sessionId = `${userId}_${challengeId}_${Date.now()}`;
+      
+      const attempt = new UserChallengeAttempt({
+        user_id: userId,
+        challenge_id: challengeId,
+        session_id: sessionId,
+        attempt_number: attemptNumber,
+        time_limit: challenge.settings.time_limit,
+        user_level_at_attempt: userLevel,
+        user_xp_at_attempt: userXp,
+        total_questions: challenge.settings.total_questions,
+        correct_answers: 0,
+        incorrect_answers: 0,
+        score: 0,
+        percentage: 0,
+        passed: false
+      });
+      
+      const savedAttempt = await attempt.save();
+      console.log('✅ Challenge attempt started:', savedAttempt._id);
+      
+      // Return session with challenge questions
+      const session = savedAttempt.toObject();
+      session.total_questions = challenge.settings.total_questions;
+      session.questions = challenge.questions;
+      
+      return session;
+    } catch (error) {
+      console.error('❌ Error starting challenge attempt:', error.message);
+      throw error;
+    }
+  },
+
+  // Submit challenge answers
+  async submitAnswers(sessionId, answers, timeTaken) {
+    try {
+      console.log('🏆 Submitting challenge answers for session:', sessionId);
+      
+      const attempt = await UserChallengeAttempt.findOne({ session_id: sessionId })
+        .populate('challenge_id');
+      
+      if (!attempt) {
+        throw new Error('Challenge attempt not found');
+      }
+      
+      if (attempt.status !== 'in_progress') {
+        throw new Error('Challenge attempt already completed');
+      }
+      
+      // Calculate results
+      const challenge = attempt.challenge_id;
+      let correctCount = 0;
+      let totalScore = 0;
+      
+      const processedAnswers = answers.map((answer, index) => {
+        const question = challenge.questions[answer.question_index];
+        const isCorrect = answer.selected_answer === question.correct_answer;
+        
+        if (isCorrect) {
+          correctCount++;
+          totalScore += 100; // 100 points per correct answer
+        }
+        
+        return {
+          question_index: answer.question_index,
+          selected_answer: answer.selected_answer,
+          is_correct: isCorrect,
+          time_taken: answer.time_taken || 0,
+          answered_at: new Date()
+        };
+      });
+      
+      const percentage = Math.round((correctCount / challenge.settings.total_questions) * 100);
+      const passed = percentage >= challenge.settings.pass_percentage;
+      
+      // Check must-correct questions
+      const mustCorrectFailed = challenge.settings.must_correct_questions.some(
+        questionIndex => !processedAnswers.find(a => a.question_index === questionIndex && a.is_correct)
+      );
+      
+      const finalPassed = passed && !mustCorrectFailed;
+      
+      // Calculate retry time
+      let canRetryAfter = null;
+      if (!finalPassed && challenge.settings.allow_retry) {
+        canRetryAfter = new Date(Date.now() + (challenge.settings.retry_delay_hours * 60 * 60 * 1000));
+      }
+      
+      // Update attempt
+      const updateData = {
+        answers: processedAnswers,
+        score: totalScore,
+        percentage: percentage,
+        passed: finalPassed,
+        correct_answers: correctCount,
+        incorrect_answers: challenge.settings.total_questions - correctCount,
+        completed_at: new Date(),
+        time_taken: timeTaken,
+        status: 'completed',
+        can_retry_after: canRetryAfter
+      };
+      
+      // Add rewards if passed
+      if (finalPassed) {
+        updateData.xp_gained = challenge.xp_reward;
+        if (challenge.badge_reward) {
+          updateData.badge_earned = challenge.badge_reward;
+        }
+      }
+      
+      const updatedAttempt = await UserChallengeAttempt.findByIdAndUpdate(
+        attempt._id,
+        updateData,
+        { new: true }
+      ).populate('challenge_id');
+      
+      // Update challenge statistics
+      await challengeTestRepository.updateStats(challenge._id, finalPassed, percentage);
+      
+      console.log('✅ Challenge answers submitted successfully');
+      return updatedAttempt;
+    } catch (error) {
+      console.error('❌ Error submitting challenge answers:', error.message);
+      throw error;
+    }
+  },
+
+  // Get challenge results
+  async getResults(userId, challengeId) {
+    try {
+      const results = await UserChallengeAttempt.find({
+        user_id: userId,
+        challenge_id: challengeId
+      }).sort({ attempt_number: -1 });
+      
+      return results;
+    } catch (error) {
+      console.error('❌ Error getting challenge results:', error.message);
+      throw error;
+    }
+  },
+
+  // Get user's best attempt for a challenge
+  async getBestAttempt(userId, challengeId) {
+    try {
+      const bestAttempt = await UserChallengeAttempt.findOne({
+        user_id: userId,
+        challenge_id: challengeId,
+        passed: true
+      }).sort({ percentage: -1, time_taken: 1 });
+      
+      return bestAttempt;
+    } catch (error) {
+      console.error('❌ Error getting best attempt:', error.message);
+      throw error;
+    }
+  }
+};
+// ===============================================
 // EXPORT REPOSITORY
 // ===============================================
 
@@ -940,5 +1473,9 @@ export const db = {
   units: unitRepository,
   lessons: lessonRepository,
   exercises: exerciseRepository,
-  vocabulary: vocabularyRepository
+  vocabulary: vocabularyRepository,
+  userVocabularyProgress: userVocabularyProgressRepository,
+  userExerciseProgress: userExerciseProgressRepository,
+  challengeTests: challengeTestRepository,
+  userChallengeAttempts: userChallengeAttemptRepository
 };

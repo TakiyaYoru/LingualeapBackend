@@ -22,6 +22,7 @@ export const contentMutationTypeDefs = `
     isPremium: Boolean
     learningObjectives: [String!]
     prerequisites: [String!]
+    skill_focus: [String!]
     sortOrder: Int
   }
 
@@ -38,6 +39,7 @@ export const contentMutationTypeDefs = `
     isPublished: Boolean
     learningObjectives: [String!]
     prerequisites: [String!]
+    skill_focus: [String!]
     sortOrder: Int
   }
 
@@ -52,7 +54,7 @@ export const contentMutationTypeDefs = `
     estimatedDuration: Int!
     isPremium: Boolean
     sortOrder: Int!
-    vocabulary: [VocabularyInput!]
+    vocabulary: [CourseVocabularyInput!]
     grammarPoints: [GrammarPointInput!]
   }
 
@@ -66,11 +68,11 @@ export const contentMutationTypeDefs = `
     isPremium: Boolean
     isPublished: Boolean
     sortOrder: Int
-    vocabulary: [VocabularyInput!]
+    vocabulary: [CourseVocabularyInput!]
     grammarPoints: [GrammarPointInput!]
   }
 
-  input VocabularyInput {
+  input CourseVocabularyInput {
     word: String!
     meaning: String!
     pronunciation: String
@@ -102,7 +104,7 @@ export const contentMutationTypeDefs = `
     difficulty: String
     isPremium: Boolean
     sortOrder: Int!
-    vocabulary: [VocabularyInput!]
+    vocabulary: [CourseVocabularyInput!]
     grammarFocus: GrammarPointInput
   }
 
@@ -117,7 +119,7 @@ export const contentMutationTypeDefs = `
     isPremium: Boolean
     isPublished: Boolean
     sortOrder: Int
-    vocabulary: [VocabularyInput!]
+    vocabulary: [CourseVocabularyInput!]
     grammarFocus: GrammarPointInput
   }
 

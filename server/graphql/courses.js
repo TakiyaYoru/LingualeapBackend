@@ -15,16 +15,19 @@ export const courseTypeDefs = `
     description: String!
     level: String!
     category: String!
+    skill_focus: [String!]!
     thumbnail: String
     color: String!
     estimatedDuration: Int!
     totalUnits: Int!
     totalLessons: Int!
     totalExercises: Int!
+    prerequisites: [Course!]!
+    challenge_test: ChallengeTest
     isPremium: Boolean!
     isPublished: Boolean!
+    publishedAt: String
     learningObjectives: [String!]!
-    prerequisites: [String!]!
     difficulty: String!
     totalXP: Int!
     enrollmentCount: Int!
@@ -35,6 +38,13 @@ export const courseTypeDefs = `
     createdBy: User!
     createdAt: String!
     updatedAt: String!
+  }
+
+  type ChallengeTest {
+    total_questions: Int!
+    pass_percentage: Int!
+    must_correct_questions: [Int!]!
+    time_limit: Int!
   }
 
   type Unit {
@@ -48,6 +58,8 @@ export const courseTypeDefs = `
     totalLessons: Int!
     totalExercises: Int!
     estimatedDuration: Int!
+    prerequisites: UnitPrerequisites
+    challenge_test: ChallengeTest
     isPremium: Boolean!
     isPublished: Boolean!
     xpReward: Int!
@@ -56,6 +68,12 @@ export const courseTypeDefs = `
     isUnlocked: Boolean!
     vocabulary: [UnitVocabulary!]!
     createdAt: String!
+  }
+
+  type UnitPrerequisites {
+    previous_unit_id: String
+    minimum_score: Int!
+    required_hearts: Int!
   }
 
   type UnitVocabulary {
@@ -78,6 +96,12 @@ export const courseTypeDefs = `
     courseId: String!
     unitId: String!
     type: String!
+    lesson_type: String!
+    objective: String
+    vocabulary_pool: [VocabularyPoolItem!]!
+    lesson_context: LessonContext
+    grammar_point: GrammarPoint
+    exercise_generation: ExerciseGeneration
     icon: String
     thumbnail: String
     totalExercises: Int!
@@ -97,14 +121,57 @@ export const courseTypeDefs = `
     createdAt: String!
   }
 
+  type VocabularyPoolItem {
+    vocabulary_id: String
+    context_in_lesson: String!
+    is_main_focus: Boolean!
+    introduction_order: Int!
+    difficulty_weight: Int!
+  }
+
+  type LessonContext {
+    situation: String
+    cultural_context: String
+    use_cases: [String!]!
+    avoid_topics: [String!]!
+  }
+
+  type GrammarPoint {
+    title: String
+    explanation: String
+    pattern: String
+    examples: [String!]!
+  }
+
+  type ExerciseGeneration {
+    total_exercises: Int!
+    exercise_distribution: ExerciseDistribution!
+    difficulty_progression: Boolean!
+    vocabulary_coverage: String!
+  }
+
+  type ExerciseDistribution {
+    multiple_choice: Int!
+    fill_blank: Int!
+    listening: Int!
+    translation: Int!
+    word_matching: Int!
+    listen_choose: Int!
+    speak_repeat: Int!
+  }
+
   type Exercise {
     id: ID!
     title: String
     instruction: String!
+    type_display_name: String!
     courseId: String!
     unitId: String!
     lessonId: String!
     type: String!
+    prompt_template: PromptTemplate
+    generation_rules: GenerationRules
+    skill_focus: [String!]!
     question: ExerciseQuestion!
     content: String! # JSON string containing exercise-specific content
     maxScore: Int!
@@ -112,11 +179,28 @@ export const courseTypeDefs = `
     xpReward: Int!
     timeLimit: Int
     estimatedTime: Int!
+    requires_audio: Boolean!
+    requires_microphone: Boolean!
     isPremium: Boolean!
     isActive: Boolean!
     sortOrder: Int!
     successRate: Int!
     createdAt: String!
+  }
+
+  type PromptTemplate {
+    system_context: String
+    main_prompt: String
+    variables: [String!]!
+    expected_output_format: String! # JSON string
+    fallback_template: String! # JSON string
+  }
+
+  type GenerationRules {
+    max_attempts: Int!
+    validation_rules: [String!]!
+    difficulty_adaptation: Boolean!
+    content_filters: [String!]!
   }
 
   type ExerciseQuestion {
@@ -131,6 +215,8 @@ export const courseTypeDefs = `
     category: String
     difficulty: String
     isPremium: Boolean
+    isPublished: Boolean
+    skill_focus: [String!]
   }
 
   extend type Query {

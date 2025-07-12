@@ -46,6 +46,43 @@ const VocabularySchema = new Schema(
       default: null
     },
     
+    // Difficulty & Frequency - UPDATED
+    difficulty: {
+      type: String,
+      enum: ['beginner', 'intermediate', 'advanced'],
+      default: 'beginner',
+      index: true
+    },
+    
+    // Frequency Score - NEW FIELD
+    frequency_score: {
+      type: Number,
+      default: 50, // 1-100 scale
+      min: 1,
+      max: 100
+    },
+    
+    // Definitions with Context - NEW FIELD
+    definitions: [{
+      context: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 100
+      },
+      meaning: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 500
+      },
+      example: {
+        type: String,
+        trim: true,
+        maxlength: 1000
+      }
+    }],
+    
     // Learning Progress
     isLearned: {
       type: Boolean,
@@ -72,14 +109,7 @@ const VocabularySchema = new Schema(
       maxlength: 30
     }],
     
-    // Difficulty & Learning Data
-    difficulty: {
-      type: Number,
-      default: 1,
-      min: 1,
-      max: 5
-    },
-    
+    // Learning Data
     reviewCount: {
       type: Number,
       default: 0
@@ -180,6 +210,8 @@ VocabularySchema.index({ userId: 1, isLearned: 1 });
 VocabularySchema.index({ userId: 1, createdAt: -1 });
 VocabularySchema.index({ userId: 1, category: 1 });
 VocabularySchema.index({ userId: 1, nextReviewDate: 1 });
+VocabularySchema.index({ userId: 1, difficulty: 1 }); // NEW INDEX
+VocabularySchema.index({ frequency_score: 1 }); // NEW INDEX
 
 // Text search
 VocabularySchema.index({ 
@@ -254,37 +286,59 @@ VocabularySchema.statics.getUserStats = function(userId) {
         _id: null,
         totalWords: { $sum: 1 },
         learnedWords: { 
-          $sum: { $cond: [{ $eq: ['$isLearned', true] }, 1, 0] } 
+          $sum: { $cond: ['$isLearned', 1, 0] } 
         },
-        unlearnedWords: { 
-          $sum: { $cond: [{ $eq: ['$isLearned', false] }, 1, 0] } 
-        },
-        averageDifficulty: { $avg: '$difficulty' },
-        totalReviews: { $sum: '$reviewCount' },
         totalAttempts: { $sum: '$totalAttempts' },
-        totalCorrect: { $sum: '$correctAnswers' }
-      }
-    },
-    {
-      $addFields: {
-        progressPercentage: {
-          $cond: [
-            { $eq: ['$totalWords', 0] },
-            0,
-            { $multiply: [{ $divide: ['$learnedWords', '$totalWords'] }, 100] }
-          ]
-        },
-        overallSuccessRate: {
-          $cond: [
-            { $eq: ['$totalAttempts', 0] },
-            0,
-            { $multiply: [{ $divide: ['$totalCorrect', '$totalAttempts'] }, 100] }
-          ]
-        }
+        correctAnswers: { $sum: '$correctAnswers' },
+        averageFrequency: { $avg: '$frequency_score' }
       }
     }
   ]);
 };
 
-// Export the model (following same pattern)
-export const Vocabulary = mongoose.model("Vocabulary", VocabularySchema);
+VocabularySchema.statics.getUserCategories = function(userId) {
+  return this.aggregate([
+    { 
+      $match: { 
+        userId: new mongoose.Types.ObjectId(userId), 
+        isActive: true 
+      } 
+    },
+    {
+      $group: {
+        _id: '$category',
+        count: { $sum: 1 },
+        learnedCount: { 
+          $sum: { $cond: ['$isLearned', 1, 0] } 
+        }
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+};
+
+VocabularySchema.statics.getWordsForReview = function(userId, limit = 10) {
+  return this.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    isLearned: true,
+    isActive: true,
+    $or: [
+      { nextReviewDate: { $lte: new Date() } },
+      { nextReviewDate: null }
+    ]
+  })
+  .sort({ frequency_score: -1, lastReviewed: 1 })
+  .limit(limit);
+};
+
+VocabularySchema.statics.clearAll = function(userId) {
+  return this.deleteMany({ 
+    userId: new mongoose.Types.ObjectId(userId) 
+  });
+};
+
+// ===============================================
+// EXPORT MODEL
+// ===============================================
+
+export const Vocabulary = mongoose.model('Vocabulary', VocabularySchema);
